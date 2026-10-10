@@ -1,0 +1,365 @@
+# Twitter Monitor v3 monorepo (RE?)
+
+---
+
+## ⚠ WARNING / 警告
+
+March 2026 Update: A large amount of content was removed. This part of the solution was already outdated and irreparable, making further maintenance unnecessary. The following are the affected projects, which may be missing:
+
+- Removed all early crawlers and statistics (data from LoveLive!/BanGDream!, etc.)
+- Removed or hid **tmv1/tmv3/media proxy/static file and image caching** related APIs
+  - The existing API's media proxy uses the currently unopened TM@GO. Future code will be available at [twitter-monitor/go](https://github.com/BANKA2017/twitter-monitor/tree/go)
+  - If you need previous data, please contact me directly.
+- Removed all cloudflare@workers related content.
+- Removed some globally installable CLI tools such as prettier/vitest/nodemon...
+- Removed all other unnecessary content.
+
+If you need unaffected repositories, please check [Commit 0a47432](https://github.com/BANKA2017/twitter-monitor/commit/0a4743247f5bb5e923cb217c4c8d8e62c7f233b7) and previous commits.
+
+2026-03 更新移除了大量内容，这部分方案早已失效，并且无法修复，已经失去继续维护的必要，下面是受影响的项目，可能会有遗漏：
+
+- 移除所有早期爬虫和统计数据（来自 LoveLive!/BanGDream! 等成员的数据）
+- 移除或隐藏 **tmv1/tmv3/媒体代理/静态文件和图片缓存** 相关 API
+  - 现有 API 的媒体代理使用暂未开源的 TM@GO，未来相关代码会放在 [twitter-monitor/go](https://github.com/BANKA2017/twitter-monitor/tree/go)
+  - 如果需要以前的数据，请直接联系我
+- 移除所有 cloudflare@workers 相关的内容
+- 移除了一些可以全局安装的 cli 工具 prettier/vitest/nodemon...
+- 移除所有其他不必要的内容
+
+如果需要未受影响的仓库，请检查 [Commit 0a47432](https://github.com/BANKA2017/twitter-monitor/commit/0a4743247f5bb5e923cb217c4c8d8e62c7f233b7) 及以前的 commit
+
+---
+
+This repository included `core/api/scripts`, frontend repository is [here](https://github.com/BANKA2017/twitter-monitor-frontend/).
+
+这个仓库包含 `核心/api/脚本`，前端仓库位于[这里](https://github.com/BANKA2017/twitter-monitor-frontend/)
+
+## How to
+
+### Settings
+
+* leave it as is if not necessary
+* service **tmv1** and **analytics** in `SQL_CONFIG` are not necessary, execpt you used twitter monitor before 2020-03
+
+### Core
+
+* **NO TYPESCRIPT**, core code are not yet supported typescript
+* copy and rename the setting file from `libs/assets/settings_sample.mjs` to `libs/assets/settings.mjs`, and edit it
+* enjoy it!
+
+### Graphql
+
+**IF POSSIBLE, DO NOT EXECUTE THOSE SCRIPTS**
+
+* execute `node apps/scripts/updateQueryIdList.mjs` to update `queryId`
+* execute `node apps/scripts/checkGraphqlFeaturesStatus.mjs` for check after updating `queryId`
+
+### Crawler
+
+* edit `SQL_CONFIG` to enable service **twitter_monitor**
+* execute `yarn run init` or `npm run init`
+* open `config.html` by browser to edit and save config file `config.json` as `libs/assets/config.json`
+
+  [Online editor](https://banka2017.github.io/twitter-monitor/apps/online_tools/config.html)
+
+* [PM2](https://pm2.keymetrics.io/) is a good choice for you, you also can use screen or nohup
+
+  ```shell
+  pm2 start apps/crawler/get_tweets.mjs
+  ```
+
+* set crontab，e.g.
+
+  ```shell
+  #those are example path, use your path
+  * * * * * node apps/crawler/blurhash.mjs #PHP version is better, node version is slow
+  */10 * * * * node apps/crawler/updatePollsAndAudioSpace.mjs
+  ```
+
+* you can set `TWEETS_SAVE_PATH` to save tweet content as json in that path
+* ~~we use another **bearer authorization token** to crawl more tweets, but this token is not supported some new feature like mix media, you can replace it by the latest token (then not support **nsfw** content)~~
+* Account pools are not yet supported. In the future, you will need to prepare a large number of accounts to build account pools.
+
+### Api
+
+* execute `yarn run dbapi` to enable the api only used databases (tmv1, twitter monitor)
+* execute `yarn run api` to enable full version api (dbapi and album api, online api, media proxy)
+* You need to prepare a large number of accounts to build an account pool. To learn more about account pool, please read [open_account/README.md](https://github.com/BANKA2017/twitter-monitor/tree/node/apps/open_account). Then copy the `guest_accounts.json` created by the script to the project root directory/the same directory as the `app.mjs`/`app_online.mjs`, or paste its content into the variable `GUEST_ACCOUNTS` of `libs/assets/setting.mjs`
+* *you can create a better api than mine
+
+### Watch dog
+
+* a script in `apps/scripts` named `watchDog.mjs` can be added to crontab to check whether some data being added in latest 30 minites
+
+### Archiver
+
+* archive userinfo, most tweets(included **reply**) and nearly **ALL MEDIA**(included avatar and banner) by search api / timeline api, `Following` and `Followers`
+* spaces, boradcast (ffmpeg command)
+* **PLEASE PRECHECK THE ACCOUNT HAVEN BEEN SEARCHBAN**
+* Read more in [archiver/README.md](https://github.com/BANKA2017/twitter-monitor/tree/node/apps/archiver)
+
+### CloudFlare Workers
+
+* supported album api, online api, media proxy and translator api
+* You need to prepare a large number of accounts to build an account pool. To learn more about account pool, please read [open_account/README.md](https://github.com/BANKA2017/twitter-monitor/tree/node/apps/open_account). Then save the content as `guest_accounts` to kv
+* to deploy it is easy
+  * *read <https://developers.cloudflare.com/workers/wrangler/workers-kv/#create-a-kv-namespace-with-wrangler> 
+  * create kv space named 'twitter-monitor-workers-kv' in <https://dash.cloudflare.com/> or executed `npx wrangler kv:namespace create kv`
+  * copy the value of 'id' into 'kv_namespaces[0].id'
+  * execute `npx wrangler publish`
+
+### Rate limit checker
+
+* set env `android_guest_account` likes
+  
+  ```javascript
+  {
+        "authorization": "Bearer AAAAAAAAAAAAAAAAAAAAAFXzAwAAAAAAMHCxpeSDG1gLNLghVe8d74hl6k4%3DRUMF4xAQLsbeBhTSRrCiQpJtxoGWeyHrDb5te2jpGskWDFW82F",
+        "oauth_token": "...",
+        "oauth_token_secret": "..."
+    }
+  ```
+
+* then execute `node apps/rate_limit_checker/run.mjs`
+* Read more in [rate-limit-checker/README.md](https://github.com/BANKA2017/twitter-monitor/tree/node/apps/rate_limit_checker)
+
+### OAuth open account pool
+
+* Read more in [open_account/README.md](https://github.com/BANKA2017/twitter-monitor/tree/node/apps/open_account)
+
+### ↑~ Web*Push X!↓
+
+* Read more in [web_push/README.md](https://github.com/BANKA2017/twitter-monitor/tree/node/apps/web_push)
+
+## Supported Cards
+
+    * summary*
+    * summary_large_image
+    * promo_image_convo
+    * promo_video_convo
+    * promo_website
+    * audio*
+    * player
+    * periscope_broadcast
+    * broadcast
+    * promo_video_website
+    * promo_image_app
+    * app
+    * direct_store_link_app
+    * live_event
+    * moment**
+    * poll2choice_text_only
+    * poll3choice_text_only
+    * poll4choice_text_only
+    * poll2choice_image
+    * poll3choice_image
+    * poll4choice_image
+    * appplayer
+    * audiospace
+    * unified_card
+        * image_website
+        * video_website
+        * image_carousel_website
+        * video_carousel_website
+        * image_app
+        * video_app
+        * image_carousel_app
+        * video_carousel_app
+        * image_multi_dest_carousel_website
+        * video_multi_dest_carousel_website
+        * mixed_media_multi_dest_carousel_website
+        * mixed_media_single_dest_carousel_website
+        * mixed_media_single_dest_carousel_app
+        * image_collection_website
+        * twitter_list_details
+        * media_with_details_horizontal (for topic ?)
+        * twitter_article
+        * community_details
+        * grok_share
+
+## Sub packages
+
+* `AxiosHelper` used to fix the issue that CloudFlare Workers unable to use axios, [Read more](https://github.com/BANKA2017/twitter-monitor/tree/node/packages/axios-helper)
+
+## Thanks
+
+* `GoogleTokenGenerator.php` from [google-translate-php](https://github.com/Stichoza/google-translate-php), I remove some unnecessary code //now we need't use tk in Google translate
+* function `get_mime` is rewrited from [Tieba-Cloud-Sign](https://github.com/MoeNetwork/Tieba-Cloud-Sign/blob/c4ab393045bcabde97c1a70fbe8e8d56be8f7f1e/lib/sfc.functions.php#L790)
+* you may notice a package named `sequelize-automate-gm` in `package.json`, this is a tiny tool to help me create model from exist tables
+
+## How it works
+
+- [怎么爬twitter(zh-Hans)](https://blog.nest.moe/posts/how-to-crawl-twitter/)
+- [怎么爬twitter Graphql(zh-Hans)](https://blog.nest.moe/posts/how-to-crawl-twitter-with-graphql/)
+- [怎么爬 Twitter（Android）(zh-Hans)](https://blog.nest.moe/posts/how-to-crawl-twitter-with-android/)
+
+## 环境要求
+
+* x86_64/arm64 (理论上是全平台支持的)
+* Node.js 18+
+* Nginx
+* MySQL 8.0 (使用MariaDB等基于 MySQL 5.x 的发行版可能不能支持函数 `ANY_VALUE()`, 解析器 `ngram`，会导致部分api不可用，若不使用api可忽略此处) / SQLite
+
+## 使用方法
+
+### 设定
+
+* 如无必要，保持原样
+* `SQL_CONFIG` 中的 **tmv1** 以及 **analytics** 的服务都不是必须的，除非您在 2022-03 重写前就使用了 twitter monitor
+
+### Core
+
+* **没有 Typescript**，其实是不知怎么入手
+* 拷贝编辑 `libs/assets/settings_sample.mjs` 并另存为 `libs/assets/settings.mjs`
+* 开始使用吧！
+
+### Graphql
+
+**如无必要，请不要跑这些脚本**
+
+* 运行 `node apps/scripts/updateQueryIdList.mjs` 以更新 `queryId`
+* 更新 `queryId` 后运行 `node apps/scripts/checkGraphqlFeaturesStatus.mjs` 进行检查（不通过怎么办？可以来提issue）
+
+### 爬虫
+
+* 编辑 `SQL_CONFIG` 以启用本服务
+* 运行 `yarn run init` 或 `npm run init` 以导入数据表以及在路径 `libs/assets/config.json` 创建配置文件
+
+  [在线编辑器](https://banka2017.github.io/twitter-monitor/apps/online_tools/config.html)
+
+* 我推荐使用 [PM2](https://pm2.keymetrics.io/)，但 nohup 和 screen 也不是不行
+
+  ```shell
+  pm2 start apps/crawler/get_tweets.mjs
+  ```
+
+* 编辑crontab
+
+  ```shell
+  #这些都是示例，用你自己的路径
+  * * * * * node apps/crawler/blurhash.mjs #PHP版更好
+  */10 * * * * node apps/crawler/updatePollsAndAudioSpace.mjs
+  ```
+
+* 设定 `TWEETS_SAVE_PATH` 可以将推文内容保存为json文件
+* ~~我们使用旧版**bearer authorization token**以获得更多的推文，但这个token并不支持一些新版的特性，比如混合媒体，你可以用新的token替换之（然后不支持 **NSFW** 内容）~~
+* 目前还不支持帐号池，未来需要自行准备大量帐号构建帐号池
+
+### Api
+
+* 运行 `yarn run dbapi` 启用仅使用数据库的api （tmv1，twitter monitor）
+* 运行 `yarn run api` 启用全部 api （上一项的全部以及 album api，online api，media proxy）
+* 需要自行准备大量帐号构建帐号池，关于帐号池请查看 [open_account/README.md](https://github.com/BANKA2017/twitter-monitor/tree/node/apps/open_account)。然后将脚本创建的 `guest_accounts.json` 拷贝到 项目根目录/执行脚本相同目录，或者将其内容粘贴到 `libs/assets/setting.mjs` 的变量 `GUEST_ACCOUNTS` 中
+* *欢迎自行开发一个更好的api
+
+### 看门狗
+
+* `apps/scripts` 里面有一个叫 `watchDog.mjs` 的脚本，可以添加到 crontab 中用以检查半小时内是否有数据增加
+
+### Archiver
+
+* 通过**搜索API**或**时间线API**备份帐号的用户信息，大多数推文（包括回复）和媒体文件（包括当前头像和banner），`Following` 和 `Followers`
+* 备份Spaces、播客（生成 ffmpeg 命令）
+* **使用前请检查待备份帐号是否被搜索封禁**
+* 使用方式请阅读 [archiver/README.md](https://github.com/BANKA2017/twitter-monitor/tree/node/apps/archiver)
+
+### CloudFlare Workers
+
+* 支持 album api, online api, media proxy 以及 翻译 api
+* 需要自行准备大量帐号构建帐号池，关于帐号池请查看 [open_account/README.md](https://github.com/BANKA2017/twitter-monitor/tree/node/apps/open_account)。然后将脚本创建的 `guest_accounts.json` 的内容命名为 `guest_accounts`，保存到 `kv`
+* 部署只需要简单的几步
+  * *（可跳过）阅读 <https://developers.cloudflare.com/workers/wrangler/workers-kv/#create-a-kv-namespace-with-wrangler> 
+  * 在 <https://dash.cloudflare.com/> 创建一个叫 'twitter-monitor-workers-kv' 的 kv 命名空间，或者直接执行 `npx wrangler kv:namespace create kv`
+  * 将返回的 'id' 的值拷贝到 'kv_namespaces[0].id'
+  * 执行 `npx wrangler publish`
+
+### Rate limit checker
+
+* 设置环境变量 `android_guest_account`
+  
+  ```javascript
+  {
+        "authorization": "Bearer AAAAAAAAAAAAAAAAAAAAAFXzAwAAAAAAMHCxpeSDG1gLNLghVe8d74hl6k4%3DRUMF4xAQLsbeBhTSRrCiQpJtxoGWeyHrDb5te2jpGskWDFW82F",
+        "oauth_token": "...",
+        "oauth_token_secret": "..."
+    }
+  ```
+
+* 然后执行 `node apps/rate_limit_checker/run.mjs`
+* 了解更多 [rate-limit-checker/README.md](https://github.com/BANKA2017/twitter-monitor/tree/node/apps/rate_limit_checker)
+
+### OAuth 帐号池
+
+* 了解更多 [open_account/README.md](https://github.com/BANKA2017/twitter-monitor/tree/node/apps/open_account)
+
+### ↑~X 推*送!↓
+
+* 了解更多 [web_push/README.md](https://github.com/BANKA2017/twitter-monitor/tree/node/apps/web_push)
+
+## 支持的卡片类型
+
+* 支持的卡片类型 (```*``` 表示使用小图, ```**``` 表示使用小图且图片在卡片右侧)
+
+  * summary*
+  * summary_large_image
+  * promo_image_convo
+  * promo_video_convo
+  * promo_website
+  * audio*
+  * player
+  * periscope_broadcast
+  * broadcast
+  * promo_video_website
+  * promo_image_app
+  * app
+  * direct_store_link_app
+  * live_event
+  * moment**
+  * poll2choice_text_only
+  * poll3choice_text_only
+  * poll4choice_text_only
+  * poll2choice_image
+  * poll3choice_image
+  * poll4choice_image
+  * appplayer
+  * audiospace
+  * unified_card
+    * image_website
+    * video_website
+    * image_carousel_website
+    * video_carousel_website
+    * image_app
+    * video_app
+    * image_carousel_app
+    * video_carousel_app
+    * image_multi_dest_carousel_website
+    * video_multi_dest_carousel_website
+    * mixed_media_multi_dest_carousel_website
+    * mixed_media_single_dest_carousel_website
+    * mixed_media_single_dest_carousel_app
+    * image_collection_website
+    * twitter_list_details
+    * media_with_details_horizontal (for topic ?)
+    * twitter_article
+    * community_details
+    * grok_share
+
+## 子包
+
+* `AxiosHelper` 用于处理解决 Workers 无法使用 axios 的问题, [阅读更多](https://github.com/BANKA2017/twitter-monitor/tree/node/packages/axios-helper)
+
+## 出处 & 感谢
+
+* `GoogleTokenGenerator.php` 这个文件出自 [google-translate-php](https://github.com/Stichoza/google-translate-php) 并经过本人小幅修改; 现在使用 Google translate 不再需要生成 TKK，故已移除本文件
+* 函数 `get_mime` 重写自 [Tieba-Cloud-Sign](https://github.com/MoeNetwork/Tieba-Cloud-Sign/blob/c4ab393045bcabde97c1a70fbe8e8d56be8f7f1e/lib/sfc.functions.php#L790)
+* 在 `package.json` 里面有一个叫 `sequelize-automate-gm` 的包，这是我用来从现有的数据库中导出 model 用的小工具（虽然有一些奇奇怪怪的 bug）
+
+## 资料
+
+- [怎么爬twitter(zh-Hans)](https://blog.nest.moe/posts/how-to-crawl-twitter/)
+- [怎么爬twitter Graphql(zh-Hans)](https://blog.nest.moe/posts/how-to-crawl-twitter-with-graphql/)
+- [怎么爬 Twitter（Android）(zh-Hans)](https://blog.nest.moe/posts/how-to-crawl-twitter-with-android/)
+
+## About v2
+
+The PHP version will be updated soon... maybe?

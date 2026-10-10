@@ -3,5 +3,10 @@
   "include": [
     "src/**/*.ts",
     "*.ts"
-  ]
+  ],
+  "compilerOptions": {
+    "types": [
+      "node"
+    ]
+  }
 }

@@ -1,0 +1,225 @@
+{
+  "data": {
+    "home": {
+      "home_timeline_urt": {
+        "instructions": [
+          {
+            "type": "TimelineAddEntries",
+            "entries": [
+              {
+                "entryId": "tweet-9007199254740993",
+                "sortIndex": "19000000000000000001",
+                "content": {
+                  "itemContent": {
+                    "tweet_results": {
+                      "result": {
+                        "__typename": "TweetWithVisibilityResults",
+                        "tweet": {
+                          "__typename": "Tweet",
+                          "rest_id": "9007199254740993",
+                          "core": {
+                            "user_results": {
+                              "result": {
+                                "rest_id": "100",
+                                "legacy": {
+                                  "screen_name": "fixture",
+                                  "name": "Fixture Author"
+                                }
+                              }
+                            }
+                          },
+                          "legacy": {
+                            "full_text": "truncated",
+                            "lang": "en",
+                            "created_at": "Wed Oct 07 01:00:00 +0000 2026",
+                            "extended_entities": {
+                              "media": [
+                                {
+                                  "type": "photo",
+                                  "media_url_https": "https://example.invalid/photo.jpg",
+                                  "ext_alt_text": "Synthetic image"
+                                }
+                              ]
+                            }
+                          },
+                          "note_tweet": {
+                            "note_tweet_results": {
+                              "result": {
+                                "text": "Full long post"
+                              }
+                            }
+                          },
+                          "quoted_status_result": {
+                            "result": {
+                              "__typename": "Tweet",
+                              "rest_id": "9007199254740994",
+                              "core": {
+                                "user_results": {
+                                  "result": {
+                                    "rest_id": "100",
+                                    "legacy": {
+                                      "screen_name": "fixture",
+                                      "name": "Fixture Author"
+                                    }
+                                  }
+                                }
+                              },
+                              "legacy": {
+                                "full_text": "quoted fixture",
+                                "lang": "en",
+                                "created_at": "Wed Oct 07 01:00:00 +0000 2026",
+                                "extended_entities": {
+                                  "media": [
+                                    {
+                                      "type": "photo",
+                                      "media_url_https": "https://example.invalid/photo.jpg",
+                                      "ext_alt_text": "Synthetic image"
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "entryId": "module-1",
+                "sortIndex": "18000000000000000001",
+                "content": {
+                  "items": [
+                    {
+                      "entryId": "module-item-1",
+                      "item": {
+                        "itemContent": {
+                          "tweet_results": {
+                            "result": {
+                              "__typename": "Tweet",
+                              "rest_id": "9007199254740995",
+                              "core": {
+                                "user_results": {
+                                  "result": {
+                                    "rest_id": "100",
+                                    "legacy": {
+                                      "screen_name": "fixture",
+                                      "name": "Fixture Author"
+                                    }
+                                  }
+                                }
+                              },
+                              "legacy": {
+                                "full_text": "Module post",
+                                "lang": "en",
+                                "created_at": "Wed Oct 07 01:00:00 +0000 2026",
+                                "extended_entities": {
+                                  "media": [
+                                    {
+                                      "type": "photo",
+                                      "media_url_https": "https://example.invalid/photo.jpg",
+                                      "ext_alt_text": "Synthetic image"
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "entryId": "tweet-9007199254740993",
+                "sortIndex": "19000000000000000001",
+                "content": {
+                  "itemContent": {
+                    "tweet_results": {
+                      "result": {
+                        "__typename": "Tweet",
+                        "rest_id": "9007199254740993",
+                        "core": {
+                          "user_results": {
+                            "result": {
+                              "rest_id": "100",
+                              "legacy": {
+                                "screen_name": "fixture",
+                                "name": "Fixture Author"
+                              }
+                            }
+                          }
+                        },
+                        "legacy": {
+                          "full_text": "truncated",
+                          "lang": "en",
+                          "created_at": "Wed Oct 07 01:00:00 +0000 2026",
+                          "extended_entities": {
+                            "media": [
+                              {
+                                "type": "photo",
+                                "media_url_https": "https://example.invalid/photo.jpg",
+                                "ext_alt_text": "Synthetic image"
+                              }
+                            ]
+                          }
+                        },
+                        "note_tweet": {
+                          "note_tweet_results": {
+                            "result": {
+                              "text": "Full long post"
+                            }
+                          }
+                        },
+                        "quoted_status_result": {
+                          "result": {
+                            "__typename": "Tweet",
+                            "rest_id": "9007199254740994",
+                            "core": {
+                              "user_results": {
+                                "result": {
+                                  "rest_id": "100",
+                                  "legacy": {
+                                    "screen_name": "fixture",
+                                    "name": "Fixture Author"
+                                  }
+                                }
+                              }
+                            },
+                            "legacy": {
+                              "full_text": "quoted fixture",
+                              "lang": "en",
+                              "created_at": "Wed Oct 07 01:00:00 +0000 2026",
+                              "extended_entities": {
+                                "media": [
+                                  {
+                                    "type": "photo",
+                                    "media_url_https": "https://example.invalid/photo.jpg",
+                                    "ext_alt_text": "Synthetic image"
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "entryId": "cursor-bottom",
+                "content": {
+                  "cursorType": "Bottom",
+                  "value": "synthetic-next-cursor"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

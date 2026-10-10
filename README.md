@@ -56,29 +56,32 @@ pnpm db:migrate
 
 真实密钥和 Playwright storageState 不提交 Git；使用服务端环境变量，不加 NEXT_PUBLIC_ 前缀。生产登录态加密与 Private Blob 在后续阶段实现。
 
-Phase 2 首先实现本地人工登录、静态 HTML fixture parser 测试、视口逐批解析与去重、幂等事务写入及采集状态记录；稳定后再接 Jev。并发任务领取、超时恢复及 SUCCESS/PARTIAL 判定需要在 job 实现时明确。
+Phase 2 已调整为保留人工登录、接入 twitter-monitor Web GraphQL 并先进行小规模验证；验证后推进幂等事务写入及采集状态记录，稳定后再接 Jev。并发任务领取、超时恢复及 SUCCESS/PARTIAL 判定需要在 job 实现时明确。
 
-## 人工 X 登录
-
-在有图形桌面的电脑上，使用交互终端在仓库根目录运行：
+## X 终端登录
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm x:auth:install
 pnpm x:auth
 ```
 
-工具打开新的 Chromium 会话。由你输入账号、密码并完成 2FA；将 X 界面设置为英文，确认账号正确并进入 `https://x.com/home`，保持浏览器打开，再回终端按回车。
+使用 twitter-monitor 固定版本的 Web HTTP 登录流程，不打开浏览器。按终端提示输入用户名、密码及必要的验证码；密码和验证码隐藏输入，不写入文件。Viewer 验证后确认账号，才保存 `playwright/.auth/x.json`。已有文件需要确认覆盖，失败或取消保留旧会话。
 
-工具检查首页、账号菜单、For you 标签页和有效登录 cookie 后，保存到 `playwright/.auth/x.json`。若已有文件，启动时须输入 `yes` 确认成功后覆盖；取消或验证失败保留原文件。整个操作最长 15 分钟，Ctrl+C 或关闭浏览器取消。
-
-该文件包含账号凭证，已被 Git 忽略。在 Linux/macOS 上目录权限为 700、文件权限为 600；Windows 请使用当前用户的受保护目录。此工具仅供本地人工登录，不采集帖子、不访问数据库、不接入 Jev，也不用于生产登录态存储。
-
-远程无桌面环境无法显示人工登录窗口，请在本地有桌面的电脑运行。Linux 如缺系统库，可按 Playwright 官方说明执行 `pnpm --filter @x-intelligence/collector exec playwright install --with-deps chromium`。
+不再需要 `pnpm x:auth:install`。旧的浏览器会话文件仍可用于探针；新文件仅包含两项 cookie，不是完整浏览器状态。账号凭证和验证码不要发送到聊天中。
 
 ```bash
 pnpm x:auth --help
 pnpm x:auth:test
 ```
 
-验证记录见 [人工登录工具](docs/manual-login.md)。
+流程、限制及验证边界见 [登录工具](docs/manual-login.md)。
+
+## Web GraphQL 采集探针
+
+按本次确认保留 twitter-monitor 原始 HTTP/TLS 行为，先验证一页：
+
+```bash
+pnpm x:collect:probe --count 10 --pages 1
+```
+
+需已有本地登录态；结果写入被 Git 忽略的 `debug-artifacts/x-probe/`。不写数据库，推荐顺序尚待人工对照。依赖、最小兼容补丁及验证步骤见 [接入验证说明](docs/twitter-monitor-probe.md)。

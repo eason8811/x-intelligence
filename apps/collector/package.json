@@ -9,7 +9,9 @@
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit",
     "x:auth": "tsx src/auth/login.ts",
-    "x:auth:test": "tsx --test src/auth/state.test.ts"
+    "x:auth:test": "tsx --test src/auth/state.test.ts ../../packages/x/src/twitter-monitor/login.test.ts",
+    "x:collect:probe": "tsx src/jobs/probe-cli.ts",
+    "x:collect:test": "tsx --test ../../packages/x/src/twitter-monitor/*.test.ts src/jobs/*.test.ts src/auth/credentials.test.ts"
   },
   "dependencies": {
     "@x-intelligence/classifier": "workspace:*",

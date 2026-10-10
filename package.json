@@ -14,8 +14,9 @@
     "db:check": "pnpm --filter @x-intelligence/db db:check",
     "db:migrate": "pnpm --filter @x-intelligence/db db:migrate",
     "x:auth": "pnpm --filter @x-intelligence/collector x:auth",
-    "x:auth:install": "pnpm --filter @x-intelligence/collector exec playwright install chromium",
-    "x:auth:test": "pnpm --filter @x-intelligence/collector x:auth:test"
+    "x:auth:test": "pnpm --filter @x-intelligence/collector x:auth:test",
+    "x:collect:probe": "pnpm --filter @x-intelligence/collector x:collect:probe",
+    "x:collect:test": "pnpm --filter @x-intelligence/collector x:collect:test"
   },
   "devDependencies": {
     "@types/node": "24.19.1",
