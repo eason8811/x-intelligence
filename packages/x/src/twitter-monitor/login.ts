@@ -2,8 +2,11 @@ import { validateCredentials } from "./transport";
 import type { XCredentials } from "./types";
 
 export class XLoginError extends Error {
-  constructor(public readonly code: string) {
-    super(code);
+  constructor(
+    public readonly code: string,
+    detail = "",
+  ) {
+    super(detail ? `${code}：${detail}` : code);
   }
 }
 export type LoginPrompt = (label: string, secret?: boolean) => Promise<string>;
@@ -32,10 +35,60 @@ export async function createLoginDriver(): Promise<LoginDriver> {
       import("./vendor/upstream/libs/core/Core.fetch.mjs"),
     ]);
   // Avoid GuestToken's automatic retry loop; keep the original HTTP implementation.
+  const { default: axiosFetch } =
+    await import("./vendor/upstream/packages/axios-helper/index.node.js");
+  const http = axiosFetch();
+  let stage = "X 首页",
+    status: number | undefined,
+    networkCode = "";
+  http.interceptors.request.use((config) => {
+    stage = config.url?.startsWith("https://abs.twimg.com/")
+      ? "X 静态资源"
+      : "X 首页";
+    status = undefined;
+    return config;
+  });
+  http.interceptors.response.use(
+    (response) => {
+      status = response.status;
+      return response;
+    },
+    (error: unknown) => {
+      const value = object(error);
+      const candidate = object(value.response).status;
+      if (typeof candidate === "number") status = candidate;
+      const code = value.code;
+      if (
+        typeof code === "string" &&
+        /^(ECONNRESET|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|ECONNABORTED|ERR_NETWORK|CERT_HAS_EXPIRED|UNABLE_TO_VERIFY_LEAF_SIGNATURE|DEPTH_ZERO_SELF_SIGNED_CERT)$/.test(
+          code,
+        )
+      )
+        networkCode = code;
+      return Promise.reject(error);
+    },
+  );
+  const failure = () => {
+    const code =
+      status === 429
+        ? "AUTH_RATE_LIMITED"
+        : status !== undefined && status >= 400
+          ? "AUTH_GUEST_HTTP_FAILED"
+          : networkCode
+            ? "AUTH_GUEST_NETWORK_FAILED"
+            : "AUTH_GUEST_PARSE_FAILED";
+    return new XLoginError(
+      code,
+      `${stage}${status !== undefined ? ` HTTP ${status}` : ""}${networkCode ? ` ${networkCode}` : ""}；未进入账号密码阶段`,
+    );
+  };
   let guest: Record<string, unknown>;
-  try { guest = object(await getToken(1, "web")); }
-  catch { throw new XLoginError("AUTH_GUEST_FAILED"); }
-  if (guest.success !== true) throw new XLoginError("AUTH_GUEST_FAILED");
+  try {
+    guest = object(await getToken(1, "web", false, { axios: http }));
+  } catch {
+    throw failure();
+  }
+  if (guest.success !== true) throw failure();
   const login = new Login({ token: guest });
   return {
     start: () => login.Init(),

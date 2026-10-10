@@ -131,8 +131,43 @@ test("original upstream login module loads and guest failure makes exactly one H
     });
   };
   try {
-    await assert.rejects(createLoginDriver(), /AUTH_GUEST_FAILED/);
+    await assert.rejects(createLoginDriver(), /AUTH_GUEST_NETWORK_FAILED/);
     assert.equal(calls, 1);
+  } finally {
+    axios.defaults.adapter = previous;
+  }
+});
+test("guest diagnostics distinguish HTTP rejection and page parsing without leaking raw error text", async () => {
+  const { default: axios } = await import("axios");
+  const { createLoginDriver } = await import("./login");
+  const previous = axios.defaults.adapter;
+  try {
+    for (const [status, expected] of [
+      [403, "AUTH_GUEST_HTTP_FAILED"],
+      [429, "AUTH_RATE_LIMITED"],
+      [200, "AUTH_GUEST_PARSE_FAILED"],
+    ] as const) {
+      axios.defaults.adapter = async (config) => {
+        if (status !== 200)
+          throw Object.assign(new Error("private-secret-not-for-output"), {
+            response: { status },
+          });
+        return {
+          config,
+          data: "<html>changed page</html>",
+          status,
+          statusText: "OK",
+          headers: {},
+        };
+      };
+      await assert.rejects(createLoginDriver(), (error) => {
+        assert.ok(error instanceof Error);
+        assert.match(error.message, new RegExp(expected));
+        if (status !== 200) assert.match(error.message, new RegExp(`HTTP ${status}`));
+        assert.doesNotMatch(error.message, /private-secret/);
+        return true;
+      });
+    }
   } finally {
     axios.defaults.adapter = previous;
   }

@@ -31,3 +31,7 @@ LoginSuccessSubtask 后请求 Viewer，检查用户 ID、用户名和两项 cook
 ## 验证
 
 离线测试覆盖分支、隐藏输入标记、Viewer 验证、取消、流程错误、步数限制、原子保存和原始模块加载。它们不能证明真实账号能登录、JS instrumentation 当前有效、Viewer 查询配置仍有效或全部 2FA 方式可用。真实验收需要你在本地交互终端完成一次登录并执行一页探针。
+
+## Guest 初始化错误诊断
+
+AUTH_GUEST_NETWORK_FAILED 表示允许列出的网络或 TLS 错误；AUTH_GUEST_HTTP_FAILED 表示首页或静态资源 HTTP 拒绝；AUTH_RATE_LIMITED 表示 HTTP 429；AUTH_GUEST_PARSE_FAILED 表示没有捕获到上述错误且未取得完整上下文，可能为页面/脚本变化或未分类错误，不等于已证明解析器故障。只输出阶段、HTTP 状态和允许列出的网络码，不输出原始异常或正文。Guest 请求通过原始 axios-helper 创建实例，注入响应诊断 interceptor，保留超时、TLS、User-Agent 和代理配置。

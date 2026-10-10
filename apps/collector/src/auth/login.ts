@@ -99,7 +99,7 @@ async function main() {
 main().catch((error) => {
   console.error(
     error instanceof XLoginError
-      ? error.code
+      ? error.message
       : "AUTH_FAILED：登录失败，原会话保留；原始异常及凭证未输出。",
   );
   process.exitCode = 1;

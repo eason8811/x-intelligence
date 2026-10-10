@@ -17,3 +17,5 @@ Only runtime dependencies needed by the imported core are installed; the upstrea
 Version upgrades require a pinned revision, checksum review, offline fixtures and live authorized-account validation. Current queryId/features have not yet been proven against a live account.
 
 Login integration: Core.function.d.mts is another local type declaration. Our dispatcher uses the original Login/getToken/getJsInstData/postFlowTask/Viewer functions. It calls getToken once rather than GuestToken retry loops, checks instrumentation errors before submission, and submits 2FA choice with correct cookies via postFlowTask instead of the upstream faulty att._twitter_sess access. Original source bytes and HTTP/TLS remain unchanged.
+
+Guest diagnostics inject an axios-helper-created instance into getToken env.axios with interceptors capturing only a stage, numeric HTTP status and allowlisted network code. It keeps original HTTP/TLS defaults and never logs upstream response bodies or exceptions.
