@@ -28,7 +28,7 @@ function checked(value: unknown): Record<string, unknown> {
     );
   return result;
 }
-export async function createLoginDriver(): Promise<LoginDriver> {
+export async function createLoginDriver(guestSource: "api" | "web" = "api"): Promise<LoginDriver> {
   const [{ Login }, { getToken, postFlowTask, getJsInstData }] =
     await Promise.all([
       import("./vendor/upstream/libs/core/Core.function.mjs"),
@@ -38,11 +38,13 @@ export async function createLoginDriver(): Promise<LoginDriver> {
   const { default: axiosFetch } =
     await import("./vendor/upstream/packages/axios-helper/index.node.js");
   const http = axiosFetch();
-  let stage = "X 首页",
+  let stage = guestSource === "api" ? "X guest activation" : "X 首页",
     status: number | undefined,
     networkCode = "";
   http.interceptors.request.use((config) => {
-    stage = config.url?.startsWith("https://abs.twimg.com/")
+    stage = config.url?.includes("/1.1/guest/activate.json")
+      ? "X guest activation"
+      : config.url?.startsWith("https://abs.twimg.com/")
       ? "X 静态资源"
       : "X 首页";
     status = undefined;
@@ -84,8 +86,19 @@ export async function createLoginDriver(): Promise<LoginDriver> {
   };
   let guest: Record<string, unknown>;
   try {
-    guest = object(await getToken(1, "web", false, { axios: http }));
-  } catch {
+    guest = object(await getToken(1, guestSource, false, { axios: http }));
+  } catch (error) {
+    const result = object(error);
+    // Upstream rejects here but continues scheduling a script request. Attribute
+    // the first failure to the homepage; never expose token values or raw errors.
+    if (result.token === "invalid guest token or ondemand_s_hex") {
+      const fields = object(result.web_ext);
+      throw new XLoginError("AUTH_GUEST_PAGE_FIELDS_MISSING",
+        `X 首页缺少登录初始化字段：guest_token=${fields.guest_token ? "已识别" : "未识别"}，ondemand_s_hex=${fields.ondemand_s_hex ? "已识别" : "未识别"}；未进入账号密码阶段`);
+    }
+    if (result.token === "No token") {
+      throw new XLoginError("AUTH_GUEST_COOKIE_PARSE_FAILED", "X 首页未识别到上游预期的 cookie 脚本；未进入账号密码阶段");
+    }
     throw failure();
   }
   if (guest.success !== true) throw failure();

@@ -19,3 +19,5 @@ Version upgrades require a pinned revision, checksum review, offline fixtures an
 Login integration: Core.function.d.mts is another local type declaration. Our dispatcher uses the original Login/getToken/getJsInstData/postFlowTask/Viewer functions. It calls getToken once rather than GuestToken retry loops, checks instrumentation errors before submission, and submits 2FA choice with correct cookies via postFlowTask instead of the upstream faulty att._twitter_sess access. Original source bytes and HTTP/TLS remain unchanged.
 
 Guest diagnostics inject an axios-helper-created instance into getToken env.axios with interceptors capturing only a stage, numeric HTTP status and allowlisted network code. It keeps original HTTP/TLS defaults and never logs upstream response bodies or exceptions.
+
+Guest 初始化修复：默认改用上游已有 getToken(1, "api") 的 POST /1.1/guest/activate.json 路径，避免 Web 首页/ondemand.s 解析前置依赖。不做失败自动切换或重试；保留原始 Axios/TLS/代理行为。已在开发环境验证 API guest 初始化成功（HTTP 200），并复现 Web 路径首页两字段未识别；这不是 Windows 代理环境或完整账号登录验收。后续 JS instrumentation 与 Viewer 仍需真实登录验证。

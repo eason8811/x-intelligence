@@ -145,7 +145,7 @@ test("guest diagnostics distinguish HTTP rejection and page parsing without leak
     for (const [status, expected] of [
       [403, "AUTH_GUEST_HTTP_FAILED"],
       [429, "AUTH_RATE_LIMITED"],
-      [200, "AUTH_GUEST_PARSE_FAILED"],
+      [200, "AUTH_GUEST_PAGE_FIELDS_MISSING"],
     ] as const) {
       axios.defaults.adapter = async (config) => {
         if (status !== 200)
@@ -160,15 +160,39 @@ test("guest diagnostics distinguish HTTP rejection and page parsing without leak
           headers: {},
         };
       };
-      await assert.rejects(createLoginDriver(), (error) => {
+      await assert.rejects(createLoginDriver("web"), (error) => {
         assert.ok(error instanceof Error);
         assert.match(error.message, new RegExp(expected));
         if (status !== 200) assert.match(error.message, new RegExp(`HTTP ${status}`));
         assert.doesNotMatch(error.message, /private-secret/);
+        if (status === 200) {
+          assert.match(error.message, /guest_token=未识别/);
+          assert.match(error.message, /ondemand_s_hex=未识别/);
+          assert.doesNotMatch(error.message, /X 静态资源/);
+        }
         return true;
       });
     }
   } finally {
     axios.defaults.adapter = previous;
   }
+});
+
+test("default guest initialization uses original API activation once without homepage parsing", async () => {
+  const { default: axios } = await import("axios");
+  const { createLoginDriver } = await import("./login");
+  const previous = axios.defaults.adapter;
+  let calls = 0;
+  axios.defaults.adapter = async config => {
+    calls++;
+    assert.equal(config.url, "https://api.x.com/1.1/guest/activate.json");
+    assert.equal(config.method, "post");
+    assert.equal(config.timeout, 30000);
+    return { config, data: { guest_token: "synthetic-guest" }, status: 200, statusText: "OK", headers: {} };
+  };
+  try {
+    const driver = await createLoginDriver();
+    assert.equal(typeof driver.start, "function");
+    assert.equal(calls, 1);
+  } finally { axios.defaults.adapter = previous; }
 });

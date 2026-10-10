@@ -35,3 +35,7 @@ LoginSuccessSubtask 后请求 Viewer，检查用户 ID、用户名和两项 cook
 ## Guest 初始化错误诊断
 
 AUTH_GUEST_NETWORK_FAILED 表示允许列出的网络或 TLS 错误；AUTH_GUEST_HTTP_FAILED 表示首页或静态资源 HTTP 拒绝；AUTH_RATE_LIMITED 表示 HTTP 429；AUTH_GUEST_PARSE_FAILED 表示没有捕获到上述错误且未取得完整上下文，可能为页面/脚本变化或未分类错误，不等于已证明解析器故障。只输出阶段、HTTP 状态和允许列出的网络码，不输出原始异常或正文。Guest 请求通过原始 axios-helper 创建实例，注入响应诊断 interceptor，保留超时、TLS、User-Agent 和代理配置。
+
+上游首页缺少 guest_token 或 ondemand_s_hex 时 reject 后仍继续调度静态资源请求，旧阶段日志可能误导。AUTH_GUEST_PAGE_FIELDS_MISSING 根据上游明确失败原因定位首页，并只显示字段是否识别；AUTH_GUEST_COOKIE_PARSE_FAILED 表示首页 cookie 脚本模式未识别。这些错误不能单凭日志区分页面结构变化、跳转页面或访问限制，需继续验证。
+
+Guest 初始化修复：默认改用上游已有 getToken(1, "api") 的 POST /1.1/guest/activate.json 路径，避免 Web 首页/ondemand.s 解析前置依赖。不做失败自动切换或重试；保留原始 Axios/TLS/代理行为。已在开发环境验证 API guest 初始化成功（HTTP 200），并复现 Web 路径首页两字段未识别；这不是 Windows 代理环境或完整账号登录验收。后续 JS instrumentation 与 Viewer 仍需真实登录验证。
