@@ -199,6 +199,14 @@ REA 对指定 codec 文件的分析父 Evidence 为 `ev_e9e0ac4f86b57267893c4582
 
 契约明确协议、页面状态、领域状态及终端/存储边界，并列 bootstrap、Castle/Prelude、身份验证与错误分支缺口。仅新增文档，未改变业务代码、依赖或真实登录行为。后续最小实现是纯数据引用解析与状态提取；完整 HTTP 自研仍受动态字段来源与授权约束约束。A0 未完全退出，A1 为调查草案，不标记验收完成。
 
+## 第六轮：有限状态提取实现
+
+在 `packages/x/src/jp5/state.ts` 实现纯数据状态提取并从 x 包导出，collector 的现有认证测试命令纳入合成用例。按根导航 preview 追踪活跃表单引用，忽略密码找回链接的非活跃 preview；最终 open_account 通过引用读取账号，仍返回未独立验证状态。未知版本/结构、非法或循环引用、多义表单、字段变化与表单错误明确停止。错误不回显字段值。
+
+5 项合成测试通过；完整认证测试 15/15 通过；x typecheck/lint 与 collector typecheck 通过。补充 subatom 引用检查后，定向 5 项及 x typecheck/lint 再次通过。私有脚本对四份真实解码结果运行同一提取函数，依次得到 PASSWORD_REQUIRED、VERIFICATION_PREPARATION_REQUIRED、CODE_REQUIRED、LOGIN_COMPLETED_UNVERIFIED。真实数据仍仅存私有目录。
+
+本轮没有实现仓库内字节 codec、HTTP 提交、SDK 信号生成或会话保存，没有执行真实登录。下一步先调查 bootstrap 与 begin_login 初始账号状态，补齐入口证据；完整登录仍需动态字段来源及独立远端身份校验。细节见 [状态契约](jp5-login-contract.md)。
+
 ## 首次无头入口探测
 
 用户说明目前没有样本，服务器 IP 已获 X 授权，要求以无头浏览器调查。本次通过 REA CLI `capture-browser-scenario` 启动现有 Chromium 153.0.8010.12，导航 `https://x.com/i/flow/login`，计划等待 8 秒并记录 DOM/accessibility/URL 及网络元数据。未输入凭证、未导入 cookie、未修改 TLS/指纹或安装软件。
@@ -208,3 +216,29 @@ REA 对指定 codec 文件的分析父 Evidence 为 `ev_e9e0ac4f86b57267893c4582
 观察：同一 request-1 的 GET 文档请求收到 HTTP 403，随后 request-failed 为 `net::ERR_HTTP_RESPONSE_CODE_FAILURE`。REA 返回 `execution_failure`，保留 3 个网络事件、0 个丢弃事件；初始导航失败，未取得页面状态。Chromium 已由 Provider 清理（terminated-owned-process）。
 
 结论边界：浏览器能启动，当前无凭证入口被拒绝；未观察登录 subtask、Viewer 或复用流程，不能归因于账号密码、上游实现或白名单配置。下一步核对授权 IP 是否为本次浏览器实际出口、是否有代理及白名单是否覆盖 Web 登录入口/相关域名；取得正常浏览器的同出口对照后再决定后续调查，不重复相同失败探测或引入规避逻辑。
+
+## 第七轮：bootstrap 入口与最小补录
+
+本轮仅检查既有 `manual-login-2/login.snapshot.har` 与已保存脚本，无网络重放、凭证提交或 SDK 执行。HAR entry 序号从 0 开始。
+
+- entry 0：GET x.com/，HTTP 200，HTML 40509 字符且无 U+FFFD。内联包含 `__INITIAL_DATA__`、TanStack 路由流与 `x-web:bootstrap-data` 事件；未以执行这些脚本的方式获取状态。首页正文未直接出现 begin_login/session_token。此项只是该正文的有限文本检查。
+- entry 149：GET jf.x.com/onboarding/web/landing，HTTP 200，text/plain，HAR text 6037 字符、1128 个 U+FFFD；这是已观测的 begin_login 前置入口，不能用损坏文本构造可信 JP-5 fixture。
+- entry 153：GET /onboarding/web/remotes/passkey_one_fa，带 form_id 查询键，HTTP 200。存在此请求不证明密码登录必须调用它，不保留查询值或实现 passkey 分支。
+- entry 166：POST /onboarding/web/actions/begin_login，请求为 application/x-www-form-urlencoded，参数名为 username_or_email、password、$castle_token。字段存在不证明全部必需，不能复制样本值。
+- entry 0 已携带 gt、guest_id 等 cookie，响应设置 ct0；entry 149 已携带 x-guest-token、authorization、x-client-transaction-id 等头。因此这份录制不是从无 guest 上下文开始，不能证明初次 guest 获取方式或直接沿用旧 guest/activate。
+
+REA 精确选择 `use-jetfuel-dev-DAyTh4gO.js` 静态分析，父 Evidence `ev_53d9c2450180a5aeb0235909bbcf6af6a610ac8ba18398fec81c03b9e3ef1d65`；脚本 SHA-256 `af24947dc4c397f845bdf99c212bad06f89570df500cd19d65f34251074dece9`。1 文件解析、0 失败，303 文件未选，图 partial、不宣称完整调用关系。原文局部读回确认：JP-5 头构造、GET 用 arrayBuffer 读取、POST 以 URLSearchParams 编码字符串字段并条件追加正常 SDK 的 $castle_token。其他认证头由导入的 transport 依赖处理，尚未完整追踪；不能把局部构造器列出的头视为最小充分请求集。
+
+本轮扩展现有 fetch 字节采集器，增加精确 GET /onboarding/web/landing；保留原四个 action。合成测试 1/1 通过，覆盖 landing 字节保真及 POST/相近路径/其他域名排除；git diff --check 通过。未将 landing 加入领域状态 allowlist，因为尚无可信字节及活跃引用证据。
+
+下一步由用户在独立未登录调查配置中，安装最新 snippet 后只打开正常登录界面，补录 landing，无需输入账号密码或验证码。步骤见 [字节采集指南](login-byte-capture.md#本轮只补录-landing无需提交账号密码)。若 landing 已提前发生而未捕获，应停止反馈，不手工重放或重复提交。收到字节后再解码初始账号表单、核对 begin_login 字段和引用；空白 guest 初始化、动态 SDK 与身份确认仍单独待验。
+
+## 第八轮：landing 无损字节与账号状态
+
+新 landing 捕获长度/SHA-256 校验通过：6439 字节，两帧 6428、3，既有隔离 codec 完整消费；消息为 dom_data/dom_ready，124 元素、187 属性。原始和解码结果保留私有目录，文件权限 600。未执行页面 action 或发出网络请求。
+
+按 root children 与属性引用追踪，活跃树到达唯一 begin_login 表单：只有空 username_or_email，没有 session_token；注册表单位于未激活导航 preview。根是直接容器树，与后续导航 root 不同。`packages/x/src/jp5/state.ts` 新增有限 ACCOUNT_REQUIRED 分支，精确字段集合与唯一表单检查不变；没有将所有响应表单扫成可提交接口。
+
+前次 HAR 提交 begin_login 时还含 password/$castle_token；当前初始表单不足以解释其来源，且两者不是同次操作。下一步追踪客户端字段补充和 transport/SDK 依赖，不以复制旧 token 或省略字段的方式试错。空白 guest 初始化和完整纯 HTTP 登录仍未验收。
+
+验证：完整认证测试 16/16 通过，x 包 typecheck/lint 通过，git diff --check 通过。私有真实解码样本运行同一提取函数，landing 返回 ACCOUNT_REQUIRED，其余五份（含新增 begin_login）保持预期状态。未执行真实自研登录、跨进程会话复用或远端账号身份校验；本轮未提交。

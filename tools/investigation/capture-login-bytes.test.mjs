@@ -33,6 +33,14 @@ test("capture preserves invalid UTF-8 bytes and original response; excludes requ
   assert.equal(text.includes("TEST_SECRET"), false);
   await context.fetch("https://example.com/onboarding/web/actions/begin_login");
   assert.equal(saved.length, 1);
+  await context.fetch("https://jf.x.com/onboarding/web/landing");
+  const landing = JSON.parse(await saved[1].text());
+  assert.equal(landing.action, "landing");
+  assert.deepEqual(Buffer.from(landing.body_base64, "base64"), Buffer.from(bytes));
+  await context.fetch("https://jf.x.com/onboarding/web/landing", { method: "POST" });
+  await context.fetch("https://jf.x.com/onboarding/web/landing-extra");
+  await context.fetch("https://example.com/onboarding/web/landing");
+  assert.equal(saved.length, 2);
   context.xLoginBytes.stop();
   assert.equal(context.fetch, original);
   assert.equal(context.xLoginBytes, undefined);

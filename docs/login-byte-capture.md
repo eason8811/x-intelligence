@@ -1,6 +1,6 @@
 # 登录 action 字节采集
 
-用于调查 JP-5 响应格式，尚未完成真实 Chrome 登录验证。不替代 HAR，不实现登录、不生成验证信号，也不重放请求。
+用于调查 JP-5 响应格式，四个 action 的真实字节已验证；landing 扩展尚待浏览器验证。不替代 HAR，不实现登录、不生成验证信号，也不重放请求。
 
 ## 操作
 
@@ -12,7 +12,7 @@
 6. 最终跳转首页会销毁旧页面的内存采集器。检查下载目录是否收到四份文件，尤其 finish_login_acid。下载发起不保证操作系统实际保存，务必核对文件。
 7. 如果没有跳转，结束后运行 `xLoginBytes.stop()` 恢复 fetch 并清空内存；如果已跳转/刷新，脚本随原页面消失。Snippets 本身只保存脚本源码，不含捕获值。
 
-只采集精确 jf.x.com 四个 action 的响应，不记录请求正文、密码输入、请求头或 cookie。响应本身仍可能含账号标识/session token，应按凭证保管；工具不能保证服务器不在响应中回显敏感字段。复制操作本身不联网发送数据；页面原有请求照常进行。
+只采集精确 jf.x.com 的 GET landing 及四个 action 的响应，不记录请求正文、密码输入、请求头或 cookie。响应本身仍可能含账号标识/session token，应按凭证保管；工具不能保证服务器不在响应中回显敏感字段。复制操作本身不联网发送数据；页面原有请求照常进行。
 
 浏览器 fetch 返回的正文通常已被浏览器解压。本文件标记 transport_bytes=false，不应按原响应头再次 gunzip；Base64 编码只保存字节，不做字符解码。
 
@@ -38,3 +38,15 @@ chmod 600 ~/rea-investigations/login-bytes/*.json
 脚本临时包装 window.fetch，在把响应交还页面前读取 clone、计算摘要并发起下载，会增加少量延迟；未改变传入参数或返回响应正文。不是被动 CDP 观察，不用它证明无干预环境下的时序。读取失败仍将原响应交还页面。只适用于已观察的小型登录响应；无法捕获页面安装前的请求、已缓存的 fetch、XHR、worker 或其他 frame。若捕获不到，改用调试器/本地 CDP 定向方案，不加入 stealth 或伪造信号。
 
 本地验证：`node --test tools/investigation/capture-login-bytes.test.mjs`。合成非法 UTF-8 字节验证 Base64/SHA-256、原响应可读、请求秘密不被记录、无关域名不被采集及 stop 恢复；不代表真实浏览器下载或登录已验证。
+
+## 本轮只补录 landing（无需提交账号密码）
+
+已有 HAR 第 149 条记录包含成功的 `GET https://jf.x.com/onboarding/web/landing`，但正文有 U+FFFD，不能恢复初始表单。更新后的脚本已覆盖该精确 GET 路径。
+
+1. 使用独立调查配置，保持未登录状态打开 https://x.com/。先不要点击“登录”。不清理日常浏览器资料。
+2. 在 Sources → Snippets 用仓库最新脚本覆盖旧内容并运行。若提示已经安装，先运行 `xLoginBytes.stop()`，再运行新脚本。
+3. 通过页面正常“登录”入口打开账号输入界面，不输入账号、密码或验证码，不刷新页面，也不手工 fetch/replay。
+4. 检查下载的 `x-login-bytes-序号-landing.json`，并用 `xLoginBytes.status()` 确认 landing 有 bytes 且无 error。若无记录，停止并告知；该请求可能已在安装前发生。不要反复重开登录流程。
+5. 运行 `xLoginBytes.stop()`。上传 JSON 至 `~/rea-investigations/login-bytes/`，文件权限 600。只告知上传完成，不贴正文。
+
+landing 响应也可能含会话或账号上下文，仍按凭证保管。无需再次录制此前四步，也无需为了这一轮完成登录。该操作只能补齐初始状态字节，不证明空白环境的 guest 获取、动态 SDK 字段或真实 HTTP 自研可用。

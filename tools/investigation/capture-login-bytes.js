@@ -1,4 +1,4 @@
-/* Run as a Chrome DevTools Snippet on https://x.com/ before submitting login. */
+/* Run as a Chrome DevTools Snippet on https://x.com/ before opening the login dialog. */
 (() => {
   "use strict";
   if (location.origin !== "https://x.com") throw new Error("Open https://x.com/ first");
@@ -20,8 +20,10 @@
     const request = args[0];
     const url = new URL(typeof request === "string" || request instanceof URL ? String(request) : request.url, location.href);
     const action = url.pathname.split("/").at(-1);
+    const method = String(args[1]?.method ?? (typeof request === "object" ? request.method : undefined) ?? "GET").toUpperCase();
     const selected = url.origin === "https://jf.x.com" &&
-      url.pathname === `/onboarding/web/actions/${action}` && actions.has(action);
+      ((url.pathname === `/onboarding/web/actions/${action}` && actions.has(action)) ||
+        (url.pathname === "/onboarding/web/landing" && method === "GET"));
     const id = selected ? ++sequence : null;
     const response = await Reflect.apply(original, this, args);
     if (!selected) return response;
@@ -66,5 +68,5 @@
       delete globalThis.xLoginBytes;
     },
   });
-  console.info("Login byte capture installed. Only four action responses are saved locally.");
+  console.info("Login byte capture installed. Only landing and four action responses are saved locally.");
 })();

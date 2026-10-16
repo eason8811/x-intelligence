@@ -1,6 +1,6 @@
 # JP-5 登录状态契约（调查草案）
 
-版本范围：Chrome 155.0.8059.79 对应人工样本及已绑定 bundle；日期 2026-10-15。此文档是后续 A1 设计输入，不是已实现接口或完整线上协议说明。
+版本范围：Chrome 155.0.8059.79 对应人工样本及已绑定 bundle；日期 2026-10-15。此文档是 A1 的有限实现契约；纯数据状态提取已实现，完整线上协议仍未验收。
 
 ## 证据层与职责
 
@@ -12,8 +12,8 @@ codec 仅解码数据；不执行返回的导航、system action 或页面代码
 
 | 建议领域状态 | 必须提取/核对的证据 | 用户输入/下一步 |
 | --- | --- | --- |
-| BOOTSTRAP_REQUIRED | 协议版本、guest 上下文、初始登录 action；当前未补齐 | 不凭旧地址猜测初始化 |
-| ACCOUNT_REQUIRED | begin_login 请求契约；首页完整状态关系仍未恢复 | 用户名/邮箱 |
+| BOOTSTRAP_REQUIRED | 已观察 GET /onboarding/web/landing；其无损字节及空白 guest 上下文仍未补齐 | 不凭旧地址猜测初始化 |
+| ACCOUNT_REQUIRED | landing 活跃容器树关联 begin_login，初始字段仅 username_or_email；已在新样本验证 | 用户名/邮箱 |
 | PASSWORD_REQUIRED | 活跃根关联到 login_enter_password 表单；username、password、非空 session_token | 隐藏输入 password |
 | VERIFICATION_PREPARATION_REQUIRED | 活跃根关联到 begin_login_acid；session_token、from_prelude_gate、prelude_dispatch_id | 浏览器正常 SDK 生成结果；未支持时停止 |
 | CODE_REQUIRED | 活跃根关联到 finish_login_acid；code、destination、非空 session_token | 隐藏输入 code；destination 只用于必要提示并脱敏 |
@@ -21,7 +21,7 @@ codec 仅解码数据；不执行返回的导航、system action 或页面代码
 | SESSION_VERIFIED | 远端身份等于预期账号；cookie 完整 | 用户确认后原子保存 |
 | STOPPED | 未知/歧义状态、拒绝、取消、网络故障等明确原因 | 不隐式回退、重试密码或删除旧会话 |
 
-“根关联”尚需实现引用解析与验证；当前文档中表单路径及最终动作来自真实解码对象读回。不能用字符串搜索、固定 property 索引、页面文案或第一个 form 代替状态识别。
+“根关联”已在 `packages/x/src/jp5/state.ts` 实现有限引用解析：从根导航的 preview 进入活跃树，追踪元素、atom/subatom 与提交引用，排除旁支导航 preview；完成状态按 system 引用读取账号 Map。当前仅支持本次样本中观察到的结构。不能用字符串搜索、固定 property 索引、页面文案或第一个 form 代替状态识别。
 
 ## 已观察表单结构
 
@@ -56,8 +56,28 @@ open_account 是候选登录完成信号；身份字段不能替代远端校验�
 
 ## 后续验证与失败语义
 
-先做纯数据引用解析及状态提取，用合成/明确脱敏 fixtures 验证：密码找回旁支不抢主流程、错误 Map 非空、未知 action、无根/无表单/多义表单、非法引用和类型不匹配均明确停止。真实原文不得直接进 fixture。
+纯数据引用解析及状态提取已实现，用合成 fixtures 验证：密码找回旁支不抢主流程、错误 Map 非空、未知 action、无根/无表单/多义表单、非法引用和类型不匹配均明确停止。真实原文不得直接进 fixture。
 
 codec 验证需覆盖截断帧、超长帧、未知 tag、变长整数及引用边界；失败不继续提交表单。网络/限流/拒绝不是密码错误；不自动重登。当前没有这些真实失败样本，不能声称已覆盖服务端全部异常。
 
-会话验收仍按：正常登录 → 合并 Cookie → 独立账号身份确认 → 用户确认保存 → 新进程无密码验证同账号。当前只完成历史成功响应解码与状态草案，尚未完成该链路。
+会话验收仍按：正常登录 → 合并 Cookie → 独立账号身份确认 → 用户确认保存 → 新进程无密码验证同账号。当前完成历史成功响应解码与有限状态提取，尚未完成该链路。
+
+## 有限实现与验证（2026-10-15）
+
+`extractJp5LoginState` 接收已解码的 `Jp5Snapshot`（真实 Map、元素和属性引用），返回四种表单状态或 `LOGIN_COMPLETED_UNVERIFIED`。不解码原始字节，不执行 action，不发送 HTTP，不保存会话。字段值仅在调用方内存中返回；错误仅含固定代码，不包含响应字段值。
+
+未知版本/action、引用越界或循环、过深引用、多活跃表单、字段集合变化、缺少 session_token、非空错误 Map 或非零表单状态均停止。本次仅观察到状态整数 0；将其他值停止是保守实现边界，不代表已确认其完整语义。
+
+验证：5 项合成测试通过；完整 `pnpm x:auth:test` 15/15 通过；x 包 typecheck/lint 与 collector typecheck 通过。另在私有目录将四份真实解码结果转换为 Snapshot，四种后继均识别正确，原始字段未进入仓库或日志。最后的引用边界补充后，5 项合成测试及 x 包 typecheck/lint 再次通过。上述不等于新实现完成真实登录、账号身份校验或会话复用。
+
+下一步调查首页 bootstrap 与初始账号表单，补齐从空白上下文到 begin_login 的证据；Castle/Prelude 正常 SDK 与独立身份校验仍为后续门槛，不接入密码自动提交。
+
+## landing 补录与账号状态
+
+收到 `x-login-bytes-1-landing.json`：HTTP 200，6439 字节，两帧 6428/3，长度与 SHA-256 匹配，逐帧完整消费。解码为 dom_data/dom_ready，124 元素、187 属性。此捕获是另一次操作，不能与此前四步拼成一次完整登录。
+
+landing 的 root 是直接容器树，区别于后续步骤的导航 action root。根下活跃树只关联一个 begin_login 表单，字段 Map 仅 username_or_email（空值），错误 Map 空、状态 0；没有 session_token。注册表单存在于非活跃导航 preview 中，不能因其存在而提交注册请求。
+
+状态提取新增 ACCOUNT_REQUIRED，只允许该直接根结构用于 begin_login；活跃树仍要求唯一表单与精确字段集合。其他形状继续停止，不把此样本提升为通用 UI 解析。合成测试覆盖账号提取、注册旁支排除、额外字段及多表单拒绝。
+
+前次 HAR 的 begin_login 请求还带 password 与 $castle_token，而本次响应初始字段没有它们。跨次样本与客户端回填逻辑尚未闭合，不能据此删除请求字段，也不能把观察到的字段写死为最小充分请求集。下一步追踪正常客户端从账号输入到请求编码的字段变化、guest transport 依赖及 SDK 边界，再决定最小 HTTP 原型。
