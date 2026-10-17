@@ -242,3 +242,69 @@ REA 精确选择 `use-jetfuel-dev-DAyTh4gO.js` 静态分析，父 Evidence `ev_5
 前次 HAR 提交 begin_login 时还含 password/$castle_token；当前初始表单不足以解释其来源，且两者不是同次操作。下一步追踪客户端字段补充和 transport/SDK 依赖，不以复制旧 token 或省略字段的方式试错。空白 guest 初始化和完整纯 HTTP 登录仍未验收。
 
 验证：完整认证测试 16/16 通过，x 包 typecheck/lint 通过，git diff --check 通过。私有真实解码样本运行同一提取函数，landing 返回 ACCOUNT_REQUIRED，其余五份（含新增 begin_login）保持预期状态。未执行真实自研登录、跨进程会话复用或远端账号身份校验；本轮未提交。
+
+## 第九轮：初始请求字段来源与 transport 静态边界
+
+本轮确认 landing 账号元素的 linkedPasswordField=password：属性 hash 与实际属性引用匹配；正常控件会渲染关联密码 input，并经 change/blur 更新表单。前次 HAR 的 begin_login password 非空，但没有足够运行时证据确认具体输入来源，也不能得出服务端必需结论。
+
+$castle_token 的调用链已静态闭合到正常 SDK createRequestToken，由网络层在有返回值时追加。共享 transport 的认证/cookie/guest 插件也已定位；初始 guest 获取和 transaction 生成仍未闭合。不能把后续纯 HTTP 实现简化为固定字段、固定头的 URL 串联，更不能以空值或历史 token 代替动态上下文。
+
+REA 两个指定 startup 文件静态解析成功，0 失败；父 Evidence `ev_10f01126fb37734d665acc55cc59e136cef9d9cb54a72d11f2fd93d1f5acc52a`，302 文件未选、graph partial。完整文件摘要、函数位置和证据边界见 [状态契约](jp5-login-contract.md#客户端补充字段与-transport-边界2026-10-17)。无网络重放、SDK 执行、新依赖或登录业务变更；本轮仅更新文档并运行 git diff --check，不将静态调查记为真实登录通过。
+
+下一步在当前协议范围实现受限字节 codec，替换对私有脚本的手工依赖；网络编排和动态字段依赖仍独立待验，不需要用户再次提交密码样本。
+
+## 第十轮：受限 JP-5 字节解码模块
+
+新增 `packages/x/src/jp5/codec.ts` 及合成测试，从 x 包导出，纳入现有认证测试命令。按已绑定 schema 用普通 TypeScript 实现长度帧和类型读取，不再依赖执行 bundle 提取片段；返回 Snapshot 后接现有状态提取。无新增依赖、网络请求、请求编码、SDK 执行或会话保存。
+
+限定为 dom_data → dom_ready 的完整两帧响应，并对字节、集合和递归设置上限；截断、尾随、未知类型、错误序列、非法编码/标志及重复 Map 键停止。具体策略与上游差异见 [状态契约](jp5-login-contract.md#受限字节-codec-实现2026-10-17)。原始凭证未进入源码或测试。
+
+私有六份真实字节的新解码对象与既有隔离 decoder 完整逐字段相等，六份均得到预期登录状态；仅本地历史样本验证，不代表真实 HTTP 自研登录或会话复用。5 项新增合成测试通过，x typecheck/lint 通过。
+
+最终检查：完整认证测试 21/21 通过，x 包 typecheck/lint、collector typecheck 与 git diff --check 通过。未运行整体 build、数据库或真实外部服务验收；本轮修改未提交。下一步继续厘清动态字段提供方式和独立身份验证，再接最小 HTTP 编排，不以 codec 通过替代登录验收。
+
+## 第十一轮：身份数据候选与只读提取
+
+检查历史登录/复用录制，确认 viewer_context 是 category/log 空响应请求，不能充当 Viewer 身份查询。登录后两份 /home 正文的 SSR 状态含一致的会话 ID 与对应用户记录；登录与复用的 account/settings 账号名均与之匹配。复用首页正文为空，因此没有复用首页 ID 证据。具体 entry、限制与 transaction 注入定位见 [状态契约](jp5-login-contract.md#独立身份候选与-transaction-注入定位2026-10-17)。
+
+新增 `packages/x/src/jp5/identity.ts` 与测试，从 x 包导出只读首页身份提取及本地比较；不执行脚本、不联网、不保存 Cookie。三项合成测试通过，x typecheck/lint 通过。私有脚本读取两份历史首页与两份 settings 比较均成功，未输出 ID、账号名或正文。它只验证已捕获数据，不代表 HTTP 端点/当前登录可用。
+
+网络编排仍未启用。下一步首先确定正常浏览器 SDK/transaction 的提供方式与空白 guest 初始化，未知条件继续停止；没有新增反 Bot 绕过或签名伪造逻辑。
+
+最终验证：完整认证测试 24/24、x typecheck/lint、collector typecheck 与 git diff --check 通过；未进行整体 build、真实网络登录或跨进程会话验收。本轮未提交。
+
+## 第十二轮：guest 首次来源缺口与 SDK 边界
+
+既有 HAR 首个请求已带 guest cookie，且未记录激活/首次设置链；不能凭现有样本实现可验证的空白 bootstrap。正常客户端仍存在 guest 激活代码，但浏览器/SSR 条件不同，未将它当首访必经流程。
+
+Castle 的 feature/public-key/idle/timeout 条件与 Prelude collect→generatePayload→signals 成功→dispatch ID 链已静态定位；不能用常量或历史值替代。sign.o 精确 REA 静态分析成功（父 Evidence `ev_62cba361b1e817a302056349c54e8153108d13c9d66fb98e0c597031b93100ff`），graph partial，未执行目标代码。并未证明纯 HTTP 不可能；正常 SDK 兼容性与服务端必要性仍待验证。
+
+新增 [空白 guest 补录指南](bootstrap-capture.md)，只需新配置访问首页并打开账号界面，避免重复密码样本。新增离线 `summarize-login-context.mjs` 及合成测试，输出白名单元数据；私有既有 HAR 回读确认 firstHomepage guestCookiePresent=true，观察到 landing 与 signals、三类 SDK 脚本，不输出原始头值或正文。
+
+验证：工具合成测试 1/1、node --check、git diff --check 通过。本轮不改业务登录实现，不执行真实登录/SDK，不新增依赖；未提交。完整空白 bootstrap 与正常动态上下文提供方式仍是 HTTP 编排的退出条件，不能将离线状态/codec/身份解析通过提升为登录验收。
+
+## 第十三轮：空白首页 guest 来源链
+
+用户上传 `clean-bootstrap/bootstrap.har`；长度 7593238、117 entries、SHA-256 `45b2e782a4fec762904edc01a8f9e474f4fdb36dda07219b587d8610533e72a0`。entry 0 无 Cookie 与 guest 请求头，GET / 返回 200 并设置非空 gt/guest_id；ct0 为空。后续 6 个带 guest 头的请求与该 gt 全部相等，未输出值。首次 guest 来源缺口在这份历史捕获范围内得到补齐，不能称服务器出口已验证。
+
+没有 landing 或 guest/activate 记录；不把首页样本与其他次登录拼成完整 flow。下一步首页初始化器应采用正常 Cookie jar 接收首页 Set-Cookie，不无条件复用旧 guest 激活路径；动态 SDK/transaction 仍待确定。详见 [状态契约](jp5-login-contract.md#空白-bootstrap-har-校验结果2026-10-17)。
+
+离线 metadata 工具补充首次响应非空标志及 guest 匹配计数；合成秘密排除测试 1/1 与 git diff --check 通过。原始 HAR 留私有目录，未重放请求、输入凭证或运行 SDK；本轮未提交。
+
+## 第十四轮：首页 guest 初始化实现
+
+新增 `bootstrapXGuest`、受限临时 Cookie jar 与 transport 边界，基于第十三轮首页 Set-Cookie 证据实现单次正常首页 GET。拒绝重定向/失败/非 HTML、缺失或过期/错误作用域/歧义 gt；账号凭证不混入 guest 上下文。仅返回受 origin 限制的私密 Cookie/guest 请求头，不执行页面、SDK，不接入密码或旧 CLI 默认路径。详见 [状态契约](jp5-login-contract.md#首页-guest-初始化器2026-10-17)。
+
+依赖变更仅把仓库既有 tough-cookie@6.0.2 声明为 x 包直接依赖，同步 lockfile；不重写 Cookie 标准规则。5 项新增本地测试通过，完整认证回归 29/29 通过。未访问 X，未以旧捕获 Cookie 作请求，未保存任何账号会话。
+
+最终检查：x 包 typecheck/lint、collector typecheck 和 git diff --check 均通过；未执行整体 build、数据库或真实外部登录验收。保留此前未提交 codec/identity/调查文件，本轮也未提交或推送。
+
+## 第十五轮：服务器首页到账号入口实测
+
+此前 codec、identity、bootstrap 的测试均为本地/历史样本。本轮新增真实无账号验证：单次首页 bootstrap 成功；另一次新上下文从首页取得 guest 后请求 landing，同次临时 jar 不使用历史 Cookie。共 3 HTTP 请求，无失败重试、自动重定向、浏览器或 SDK 执行。
+
+landing HTTP 200、6465 字节，新 codec 与状态提取返回 ACCOUNT_REQUIRED；脱敏报告 `probe-landing-result.json` 留仓库外私有目录，时刻 2026-10-17T06:06:07.271Z。应用 bearer 仅从已保存的公开客户端配置读取，无账号凭证提交。具体头来源与限制见 [状态契约](jp5-login-contract.md#服务器无账号入口实测2026-10-17)。
+
+这次已贯通服务器上的空会话→首页 guest→登录账号入口，但没有测试任何登录 POST、生成 SDK/transaction 信号、远端身份确认或会话复用。不能将本次未带动态字段仍成功的 GET 推广为后续 POST 的可省略结论。下一步收敛 landing 读取和 Cookie 更新接口，再推进请求编排；不提前切换现有 CLI。
+
+本轮只更新调查文档，git diff --check 通过；保留已有未提交实现，未提交/推送。最初一次私有探测脚本因 .ts 被 tsx 按 CJS 转换、不支持顶层 await，在发请求前退出；改为 .mts 后运行。该工具启动错误不计作 X 请求失败或重试。
