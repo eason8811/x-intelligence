@@ -189,3 +189,27 @@ landing 请求使用同次首页 jar 的 Cookie/guest，JP-5、主题/语言/时
 更新推进边界：动态 SDK 问题不再阻塞本次已测的首页与账号入口 GET；仍阻塞完整 POST 登录可用性的判断。现有生产 CLI 未切换，未提交账号，未验证密码/验证码、独立远端账号身份或跨进程复用。
 
 下一步可将该最小 landing 读取路径收敛为库模块：显式公开应用配置、限定 URL/方法、同次 Cookie 上下文、响应大小/超时限制、处理 Set-Cookie 更新并解码状态。随后再做离线请求编排与动态字段提供边界；没有运行时提供者时停止，不填历史 token 或伪造值。真实账号阶段继续使用终端隐藏输入，不在聊天或日志索要密码。
+
+## landing 库接口与 Cookie 分支（2026-10-17）
+
+`loadXLoginLanding` 将上一轮临时探测路径收敛为库：调用方显式提供公开 applicationBearer、语言和实际时区；只向固定 jf landing GET，使用同次 guest Cookie/guest header，JP-5 与观测到的主题头。默认 Node fetch 禁止自动重定向，无重试，15 秒 signal，流式读取上限 1 MiB，响应要求原 URL、200、text/plain；解码后只接受 ACCOUNT_REQUIRED。未知状态、协议错误或拒绝停止。自定义 transport 是可信边界，必须遵守 manual/signal 和正文限制。
+
+XGuestContext 新增 `withResponseCookies(url, cookies)`：只接受既有 origin 白名单，克隆 jar 后按实际响应 URL 应用 Set-Cookie，沿用条数/大小限制；重新校验首页、landing 和响应作用域的 guest，一旦删除、歧义、域名错误或出现账号 Cookie 就停止。返回新的上下文，旧上下文保持不变；调用方必须显式采用返回上下文，避免失败时半更新。此接口仅服务 guest 阶段，不能用于保存登录完成后的 auth_token/twid。
+
+本轮新增合成测试覆盖 Cookie 分支/作用域/原子失败及 landing 正常解码、拒绝、配置校验、取消和脱敏；没有新发真实 X 请求。前节真实 200 证据来自此前私有探测，不能当作新增库的外部验收。账号 POST、SDK 动态字段、登录完成身份确认与跨进程复用继续开放；现有 CLI 未切换。
+
+## 离线 POST 请求构建（2026-10-17）
+
+新增 `prepareJp5Submission(state, input)`：仅支持上述四种表单状态，重新核对 action 与精确字段集合，并复制字段快照；完成态不能再次提交。账号输入可显式携带关联密码，未提供时不补该字段；密码与验证码仅替换对应输入字段，保留同次响应 username、destination、session_token 等字段，不要求 token 跨步骤相等。验证码按已观测表单约束接受 ASCII 字母数字，输入不隐式 trim。
+
+返回计划只含固定目标 URL、POST 方法、运行时需求名与编码方法；JSON 序列化不包含输入/服务端字段。`encodeForTransport` 通过 URLSearchParams 编码表单，并单独返回 transaction 头；其返回值包含敏感信息，不能输出、持久化或直接公开序列化。编码结果不含 Cookie、Authorization 或完整公共请求头，不能当作已可发送的完整请求。此模块无网络发送器，不执行 SDK，也不接入 CLI。
+
+当前保守要求每步显式提供 Castle 与 transaction 结果，验证准备额外要求 Prelude dispatch ID；缺失即停止。此为实现门槛，不是已证明服务端每步均必需。运行时参数是可信适配边界，非空/格式检查不能认证 token 来源、有效期、同会话关联或服务端接受性；仓库没有生产提供者，不从 HAR、随机数或伪造信号补值。后续必须建立正常提供者与上下文绑定后才考虑发送。
+
+合成测试覆盖四步字段保留与替换、URL 编码、首步关联密码的有无、计划序列化、状态/action/字段错配、输入限制及缺失运行时结果。测试 token 均为 synthetic 字符串，不来自真实录制。完整 HTTP 登录、账号身份确认、会话保存与复用仍未验收。
+
+## 正常运行时的可行路线复核（2026-10-17）
+
+本轮直接读回 signals 的构造器与 dispatchSignals 调用链：捕获 Web SDK 明确检查 browser-like 环境，实际收集依赖 window.location 与 document canvas；本机 Node v24.14.0 没有 window/document/isSecureContext/Worker。这里没有执行 SDK、发送信号或提交账号，不能把静态依赖当成真实执行失败，也不能推断所有纯 HTTP 路线均不可行。
+
+当前缺少可信正常运行时，`Jp5RuntimeFields` 参数及非空校验不能证明同会话绑定。已将两条可执行路线、架构影响和退出条件写入 [登录运行时路线决策](login-runtime-decision.md)：保持纯 HTTP 并获取合作方支持的服务端提供者，或明确允许正常浏览器参与协议验证。未选择前不静默恢复浏览器登录，也不继续以空提供者封装代替可运行实现。

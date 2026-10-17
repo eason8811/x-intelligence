@@ -66,3 +66,27 @@ test("default transport disables redirects and cancels the unused response body"
   assert.equal((await context.headersFor("https://api.x.com/"))["x-guest-token"], "synthetic");
   assert.equal(calls, 1); assert.equal(cancelled, true);
 });
+test("response cookie forks rotate guest atomically and respect response host and path", async () => {
+  const original = await bootstrapXGuest({ transport: async () => base });
+  const landing = "https://jf.x.com/onboarding/web/landing";
+  const rotated = await original.withResponseCookies(landing, [
+    "gt=rotated; Domain=.x.com; Path=/; Secure", "landingOnly=scoped; Secure",
+  ]);
+  assert.equal((await rotated.headersFor(landing))["x-guest-token"], "rotated");
+  assert.equal((await original.headersFor(landing))["x-guest-token"], "synthetic");
+  assert.equal((await rotated.headersFor(landing)).cookie.includes("landingOnly=scoped"), true);
+  assert.equal((await rotated.headersFor("https://x.com/")).cookie.includes("landingOnly="), false);
+  assert.equal((await rotated.headersFor("https://jf.x.com/elsewhere")).cookie.includes("landingOnly="), false);
+  assert.equal(JSON.stringify(rotated), "{}");
+  for (const cookies of [
+    ["gt=rotated; Domain=.x.com; Path=/; Secure", "bad=value; Domain=example.com"],
+    ["gt=; Domain=.x.com; Path=/; Max-Age=0"],
+    ["gt=other; Path=/; Secure"],
+    ["auth_token=secret; Domain=.x.com; Path=/"],
+    ["twid=secret; Path=/"],
+    Array<string>(65).fill("a=b"), ["a=" + "x".repeat(8192)],
+  ]) await assert.rejects(original.withResponseCookies(landing, cookies), XBootstrapError);
+  await assert.rejects(original.withResponseCookies("https://example.com/", []), XBootstrapError);
+  assert.equal((await original.headersFor(landing))["x-guest-token"], "synthetic");
+  assert.equal((await (await original.withResponseCookies(landing, [])).headersFor(landing))["x-guest-token"], "synthetic");
+});

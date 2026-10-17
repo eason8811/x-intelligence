@@ -308,3 +308,19 @@ landing HTTP 200、6465 字节，新 codec 与状态提取返回 ACCOUNT_REQUIRE
 这次已贯通服务器上的空会话→首页 guest→登录账号入口，但没有测试任何登录 POST、生成 SDK/transaction 信号、远端身份确认或会话复用。不能将本次未带动态字段仍成功的 GET 推广为后续 POST 的可省略结论。下一步收敛 landing 读取和 Cookie 更新接口，再推进请求编排；不提前切换现有 CLI。
 
 本轮只更新调查文档，git diff --check 通过；保留已有未提交实现，未提交/推送。最初一次私有探测脚本因 .ts 被 tsx 按 CJS 转换、不支持顶层 await，在发请求前退出；改为 .mts 后运行。该工具启动错误不计作 X 请求失败或重试。
+
+### 第十六轮：landing 库化与 guest Cookie 更新
+
+准备阶段成果提交为 `49ddcc1`。随后新增 `loadXLoginLanding`，将已观测的无账号入口 GET 收敛为显式配置、固定地址、限时限大小的库接口，解码后仅接受账号输入状态。guest 上下文通过克隆 Cookie jar 接受响应更新，原上下文不变，失败不留下半更新。详细边界见 jp5-login-contract.md。本轮仅执行离线合成测试及静态检查，未发送真实登录请求；默认 transport 的 mock 测试已覆盖正常解码、手动重定向配置及流式超限取消；后续推进离线 POST 请求规划与动态字段提供边界。
+
+### 第十七轮：离线 POST 构建边界
+
+新增 `packages/x/src/jp5/submission.ts` 与合成测试，按四种已观察状态构造 URLSearchParams 表单，并将用户输入与服务端字段、运行时字段分离。复制当前响应字段，不固定历史 session_token；账号首步 password 仅在调用方明确提供关联输入时加入。缺少正常运行时结果停止，未接入生产提供者或发送器。本轮未发送真实 X 请求，未切换 CLI；下一步先确定正常 SDK/transaction 的运行方式及同 guest 上下文绑定，再决定完整 HTTP 提交适配器。
+
+### 第十八轮：正常 SDK 运行边界与路线决策
+
+复核 Prelude 构造器的明确浏览器环境检查、dispatchSignals 完整提交顺序，以及 Castle/transaction 既有集成入口。当前 Node 宿主缺少其所读页面环境；未执行 SDK 或发出真实请求。证据和两条可执行路线收敛到 login-runtime-decision.md，等待用户选择是否调整纯 HTTP 登录边界；不新增伪提供者、token 拼接或环境模拟代码。
+
+### 第十九轮：授权无账号浏览器验证
+
+用户选择正常浏览器参与验证。REA 临时 Chromium 153.0.8010.12 首次 GET x.com/ 得到 403，初始导航失败；partial observation 含 3 网络事件，无账号操作，provider 报告临时进程清理完成。未把该记录当作 SDK 成功执行。新增本地真实 Chrome 脱敏摘要工具及 browser-bootstrap-observation.md；工具只做语法检查，待用户电脑实际运行。不重试拒绝、不改指纹、不提交。

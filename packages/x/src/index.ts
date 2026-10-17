@@ -21,3 +21,7 @@ export {
   XLoginError,
 } from "./twitter-monitor/login";
 export type { LoginDriver, LoginPrompt } from "./twitter-monitor/login";
+export { loadXLoginLanding, XLandingError } from "./jp5/landing";
+export type { XLandingRequest, XLandingResponse, XLandingTransport } from "./jp5/landing";
+export { prepareJp5Submission, Jp5SubmissionError } from "./jp5/submission";
+export type { Jp5LoginInput, Jp5RuntimeFields } from "./jp5/submission";

@@ -24,6 +24,8 @@ export type XBootstrapTransport = (request: XBootstrapRequest) => Promise<XBoots
 export interface XGuestContext {
   /** Contains credentials. Never log, persist or pass to an untrusted transport. */
   headersFor(url: string): Promise<Readonly<Record<string, string>>>;
+  /** Apply cookies from a validated response to a new context; this context stays unchanged. */
+  withResponseCookies(url: string, cookies: readonly string[]): Promise<XGuestContext>;
 }
 const fail = (code: XBootstrapError["code"]): never => { throw new XBootstrapError(code); };
 const fetchHome: XBootstrapTransport = async (request) => {
@@ -73,15 +75,34 @@ export async function bootstrapXGuest(options: {
     } catch { return fail("X_BOOTSTRAP_COOKIE"); }
     const initial = await guest(jar, HOME);
     if (await guest(jar, LANDING) !== initial) return fail("X_BOOTSTRAP_GUEST_MISSING");
-    return Object.freeze({
-      async headersFor(input: string): Promise<Readonly<Record<string, string>>> {
-        const url = target(input).href;
-        const token = await guest(jar, url);
-        return Object.freeze({ cookie: await jar.getCookieString(url), "x-guest-token": token });
-      },
-    });
+    return context(jar);
   } catch (error) {
     if (error instanceof XBootstrapError) throw error;
     return fail(signal.aborted ? "X_BOOTSTRAP_ABORTED" : "X_BOOTSTRAP_NETWORK");
   }
+}
+
+function context(jar: CookieJar): XGuestContext {
+  return Object.freeze({
+    async headersFor(input: string): Promise<Readonly<Record<string, string>>> {
+      const url = target(input).href;
+      const token = await guest(jar, url);
+      return Object.freeze({ cookie: await jar.getCookieString(url), "x-guest-token": token });
+    },
+    async withResponseCookies(input: string, cookies: readonly string[]): Promise<XGuestContext> {
+      const url = target(input).href;
+      if (cookies.length > 64 || cookies.some((cookie) => cookie.length > 8192))
+        return fail("X_BOOTSTRAP_COOKIE");
+      // A fork prevents partial updates and races between independent response branches.
+      let next: CookieJar;
+      try {
+        next = await jar.clone();
+        for (const cookie of cookies) await next.setCookie(cookie, url);
+      } catch { return fail("X_BOOTSTRAP_COOKIE"); }
+      const token = await guest(next, HOME);
+      if (await guest(next, LANDING) !== token) return fail("X_BOOTSTRAP_GUEST_MISSING");
+      await guest(next, url);
+      return context(next);
+    },
+  });
 }
