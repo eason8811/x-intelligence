@@ -1,14 +1,15 @@
-/** No-account browser observation. Run from a checkout with collector dependencies installed. */
+/** No-account or explicitly selected manual-login browser observation. Run from a checkout with collector dependencies installed. */
 import { createRequire } from 'node:module';
 const require = createRequire(new URL('../../apps/collector/package.json', import.meta.url));
 const { chromium } = require('playwright');
-const channel = process.argv[2];
-if (channel && channel !== 'chrome') {
-  console.error('Usage: node tools/investigation/observe-login-bootstrap.mjs [chrome]');
+const manual = process.argv.includes('--login');
+const channel = process.argv.slice(2).find((arg) => arg !== '--login');
+if ((channel && channel !== 'chrome') || process.argv.slice(2).length > (manual ? 2 : 1)) {
+  console.error('Usage: node tools/investigation/observe-login-bootstrap.mjs [chrome] [--login]');
   process.exit(1);
 }
 const summary = {
-  schema: 'x-no-account-bootstrap/v1', atUtc: new Date().toISOString(),
+  schema: manual ? 'x-manual-login-observation/v1' : 'x-no-account-bootstrap/v1', atUtc: new Date().toISOString(),
   browserVersion: null, homepageStatus: null, finalOrigin: null,
   outcome: 'NOT_STARTED', requests: 0, failedRequests: 0, pageErrors: 0,
   scripts: { castle: 0, prelude: 0, transaction: 0 },
@@ -17,6 +18,36 @@ const summary = {
     headerRequests: 0, matchingCurrentGt: 0, transactionHeaderRequests: 0 },
   cleanup: 'NOT_LAUNCHED',
 };
+const started = Date.now();
+const events = [];
+const actions = new Set(['begin_login', 'login_enter_password', 'begin_login_acid', 'finish_login_acid']);
+let sequence = 0;
+const requests = new WeakMap();
+function classify(raw) {
+  let url;
+  try { url = new URL(raw); } catch { return null; }
+  if (url.origin === 'https://edge.prelude.dev' && url.pathname === '/v1/signals') return 'signals';
+  if (url.origin === 'https://jf.x.com' && url.pathname === '/onboarding/web/landing') return 'landing';
+  if (url.origin === 'https://jf.x.com' && url.pathname.startsWith('/onboarding/web/actions/')) {
+    const action = url.pathname.slice('/onboarding/web/actions/'.length);
+    return actions.has(action) ? action : 'UNKNOWN_ACTION';
+  }
+  return null;
+}
+function record(request, status) {
+  if (!manual) return;
+  const kind = classify(request.url());
+  if (!kind) return;
+  let id = requests.get(request);
+  if (!id) { id = ++sequence; requests.set(request, id); }
+  if (events.length < 128) events.push({ id, kind, elapsedMs: Date.now() - started, status });
+  else summary.eventsTruncated = true;
+  console.error(`[observe] ${kind} ${status ?? 'REQUEST'}`);
+  if (kind === 'UNKNOWN_ACTION') {
+    summary.outcome = 'UNKNOWN_ACTION_STOPPED';
+    void finish();
+  }
+}
 let browser, finishing = false;
 let stage = 'LAUNCH';
 const progress = (next) => { stage = next; console.error(`[observe] ${next}`); };
@@ -32,13 +63,14 @@ async function finish() {
   finishing = true;
   clearTimeout(watchdog);
   summary.lastStage = stage;
+  if (manual) { summary.events = events; summary.identityVerified = false; summary.sessionSaved = false; }
   progress('CLEANUP');
   if (browser) {
     try { await bounded(browser.close(), 5_000); summary.cleanup = 'CLOSED'; }
     catch { summary.cleanup = 'CLOSE_FAILED_OR_TIMED_OUT'; }
   }
   // A stuck protocol connection must not prevent the diagnostic result from appearing.
-  const exitCode = summary.outcome === 'OBSERVATION_COMPLETE_UNVERIFIED' && summary.cleanup === 'CLOSED' ? 0 : 1;
+  const exitCode = ['OBSERVATION_COMPLETE_UNVERIFIED', 'MANUAL_OBSERVATION_COMPLETE_UNVERIFIED', 'LOGIN_CANDIDATE_UNVERIFIED'].includes(summary.outcome) && summary.cleanup === 'CLOSED' ? 0 : 1;
   const exitTimer = setTimeout(() => process.exit(exitCode), 1_000);
   process.stdout.write(JSON.stringify(summary, null, 2) + '\n', () => {
     clearTimeout(exitTimer); process.exit(exitCode);
@@ -47,7 +79,8 @@ async function finish() {
 const watchdog = setTimeout(() => {
   summary.outcome = 'OBSERVATION_TOTAL_TIMEOUT';
   void finish();
-}, 60_000);
+}, manual ? 600_000 : 60_000);
+process.once('SIGINT', () => { summary.outcome = 'CANCELLED'; void finish(); });
 try {
   progress('LAUNCH');
   browser = await chromium.launch({ headless: false, ...(channel ? { channel } : {}) });
@@ -64,6 +97,7 @@ try {
   };
   context.on('request', (request) => {
     summary.requests++;
+    record(request, null);
     const url = new URL(request.url());
     if (url.origin === 'https://jf.x.com' && url.pathname.startsWith('/onboarding/web/actions/'))
       summary.actionRequests++;
@@ -82,6 +116,7 @@ try {
   context.on('requestfailed', () => { summary.failedRequests++; });
   page.on('pageerror', () => { summary.pageErrors++; });
   context.on('response', (response) => {
+    record(response.request(), response.status());
     const url = new URL(response.url());
     if (url.origin === 'https://jf.x.com' && url.pathname === '/onboarding/web/landing')
       summary.landingStatuses.push(response.status());
@@ -99,8 +134,17 @@ try {
   summary.homepageStatus = response?.status() ?? null;
   if (summary.homepageStatus !== 200) summary.outcome = 'HOMEPAGE_REFUSED';
   else {
-    progress('OBSERVE_15_SECONDS');
-    await new Promise((resolve) => setTimeout(resolve, 15_000));
+    if (manual) {
+      progress('WAIT_FOR_MANUAL_LOGIN');
+      console.error('请仅在浏览器输入账号、密码和验证码。进入首页后回到终端按 Enter 结束。未知挑战请按 Ctrl+C 停止；最多等待10分钟。不保存会话。');
+      const { createInterface } = await import('node:readline');
+      const input = createInterface({ input: process.stdin, terminal: false });
+      try { await new Promise((resolve) => { input.once('line', resolve); input.once('close', resolve); }); }
+      finally { input.close(); }
+    } else {
+      progress('OBSERVE_15_SECONDS');
+      await new Promise((resolve) => setTimeout(resolve, 15_000));
+    }
     summary.outcome = 'OBSERVATION_COMPLETE_UNVERIFIED';
   }
   summary.finalOrigin = new URL(page.url()).origin;
@@ -111,7 +155,10 @@ try {
   summary.guest.gtPresent = cookies.some((c) => c.name === 'gt' && !!c.value);
   summary.guest.guestIdPresent = cookies.some((c) => c.name === 'guest_id' && !!c.value);
   summary.guest.authCookiePresent = cookies.some((c) => ['auth_token', 'twid'].includes(c.name) && !!c.value);
-  if (summary.guest.authCookiePresent) summary.outcome = 'UNEXPECTED_ACCOUNT_CONTEXT';
+  if (manual && summary.homepageStatus === 200) {
+    summary.outcome = summary.guest.authCookiePresent && new URL(page.url()).pathname === '/home'
+      ? 'LOGIN_CANDIDATE_UNVERIFIED' : 'MANUAL_OBSERVATION_COMPLETE_UNVERIFIED';
+  } else if (summary.guest.authCookiePresent) summary.outcome = 'UNEXPECTED_ACCOUNT_CONTEXT';
 } catch {
   summary.outcome = 'OBSERVATION_FAILED';
 } finally {

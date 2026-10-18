@@ -53,3 +53,23 @@ node tools/investigation/observe-login-bootstrap.mjs chrome > bootstrap-summary.
 本地首页摘要没有 signals，符合当前观察范围。历史授权登录样本中，提交密码后响应导航至 prelude_gate，关联 begin_login_acid；正常客户端的 Input2PreludeToken 路径加载 signals 模块并调用 dispatchSignals，成功提交 signals 后回填同次 dispatch ID，再由正常页面推进验证准备与验证码流程。网络时间接近不能单独证明严格先后，客户端调用链才支持返回 ID 的条件。其他账号、挑战分支或未来版本可能不同，不断言每次登录都走此分支。
 
 Prelude 影响的是该验证准备分支的纯 Node 重建：服务端表单要求 prelude_dispatch_id，正常来源是依赖浏览器上下文的 SDK 执行结果。缺少这个正常提供者时不能用历史值或随机数替代。它不阻塞无账号首页或已实测的 landing GET，也不是本次观测工具应等待的成功条件。
+
+## 人工授权登录观测模式（2026-10-18）
+
+用户明确同意扩展为人工登录观测。超时修复已提交为 e757dd3。新增 --login 显式模式；原无账号模式行为保留。此模式仅为调查，不替换生产 CLI，不启用 SDK token 转交 Node、会话保存或复用。
+
+本地命令（取得包含本模式的代码后）：
+
+```powershell
+node tools/investigation/observe-login-bootstrap.mjs chrome --login > login-summary.json
+```
+
+1. 本地先关闭旧观测窗口，使用授权账号。在新临时 Chrome 窗口中自行输入账号、密码和验证码，终端不输入凭证。
+2. 进入首页后回到终端按 Enter。工具不会自动认定登录完成；最多等 10 分钟，Ctrl+C 可提前停止。若遇未知挑战或异常验证，不继续操作，Ctrl+C 停止。
+3. 工具关闭浏览器，仅将脱敏 JSON 写 stdout（以上重定向保存文件），阶段提示在 stderr。向调查方提供 login-summary.json 即可，不提供 Cookie、密码、验证码或浏览器 profile。
+
+记录仅包括已知四个 action、landing/signals 的请求和响应状态、配对 ID、相对毫秒、脚本加载及头/Cookie 的存在性计数。不读取请求正文、不抓 HAR、截图、页面文本或 console，不主动调用 SDK、不代填表、不重试登录。未知 action 只记录 UNKNOWN_ACTION 并停止，不输出其路径。timeline 的事件顺序是监听器收到事件的顺序，不当作严格因果；成功 signals 与后续请求相邻不能证明具体 dispatch 值已回填。
+
+观察到 /home 路径及账号 Cookie 只标记 LOGIN_CANDIDATE_UNVERIFIED；始终输出 identityVerified=false、sessionSaved=false，不输出账号名或 ID，也不进行独立远端身份校验。身份确认与新进程复用为后续阶段。10 分钟超时可能销毁本次临时登录成果；当前不保存会话。
+
+验证：3 个隔离子进程用例覆盖未返回元数据、页面创建/关闭卡住，以及五个已知登录/信号阶段的请求响应配对和秘密值排除。仅 mock 验证，不是本地 Chrome 的人工登录验收。真实账号测试需在用户电脑执行。

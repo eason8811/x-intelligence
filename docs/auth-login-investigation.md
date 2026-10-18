@@ -328,3 +328,7 @@ landing HTTP 200、6465 字节，新 codec 与状态提取返回 ACCOUNT_REQUIRE
 ### 第二十轮：本地入口成功与观测器超时修复
 
 用户回传 Chrome 155.0.8059.80 本地摘要：首页/landing 200，无账号 Cookie/动作/signals，guest 9/9 当前值匹配，Castle/transaction 脚本已加载。记录为本地入口证据，不升级为账号或 SDK 执行验收。旧脚本手动关闭后才输出，具体等待点未知；补充阶段提示、单项截止、60 秒总 watchdog 和有界清理。两个子进程故障模拟测试通过，需本地复测。明确 Prelude 属于已观察到的密码后 prelude_gate 分支，与首页观测挂起无已知因果关系。
+
+### 第二十一轮：人工授权登录观测模式
+
+2026-10-18 用户同意扩展人工登录观测。先提交既有超时修复 e757dd3，随后为工具新增显式 --login 模式：用户在临时本地 Chrome 输入凭证，终端 Enter 结束，最长 10 分钟。仅记录已知 action/signals 元数据时间线，未知 action 停止；不读取请求正文，不保存会话，不将候选登录判为身份验收。3 个 mock 子进程测试通过；真实人工流程等待用户本地执行。步骤见 browser-bootstrap-observation.md。
