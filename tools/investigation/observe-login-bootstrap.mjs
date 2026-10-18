@@ -2,14 +2,18 @@
 import { createRequire } from 'node:module';
 const require = createRequire(new URL('../../apps/collector/package.json', import.meta.url));
 const { chromium } = require('playwright');
-const manual = process.argv.includes('--login');
-const channel = process.argv.slice(2).find((arg) => arg !== '--login');
-if ((channel && channel !== 'chrome') || process.argv.slice(2).length > (manual ? 2 : 1)) {
-  console.error('Usage: node tools/investigation/observe-login-bootstrap.mjs [chrome] [--login]');
-  process.exit(1);
-}
+import { parseOptions, prepareProfile } from './browser-profile.mjs';
+let options;
+try { options = parseOptions(process.argv.slice(2)); }
+catch { console.error('Usage: node tools/investigation/observe-login-bootstrap.mjs [chrome] [--login] [--profile ABSOLUTE_PATH] [--prepare-profile]'); process.exit(1); }
+const { manual, channel } = options;
+let profile;
+try { if (options.profile) profile = await prepareProfile(options.profile); }
+catch { console.error('PROFILE_REJECTED: use an empty dedicated directory outside the repository, never the daily Chrome profile.'); process.exit(1); }
+if (options.prepare) { console.error('Dedicated profile prepared. Close its manual Chrome before running the observer.'); process.exit(0); }
 const summary = {
   schema: manual ? 'x-manual-login-observation/v1' : 'x-no-account-bootstrap/v1', atUtc: new Date().toISOString(),
+  initialAuthCookiePresent: false, profilePersistenceEnabled: !!profile, viewportMode: 'native-window', localeMode: 'system-default', timezoneMode: 'system-default',
   browserVersion: null, homepageStatus: null, finalOrigin: null,
   outcome: 'NOT_STARTED', requests: 0, failedRequests: 0, pageErrors: 0,
   scripts: { castle: 0, prelude: 0, transaction: 0 },
@@ -48,7 +52,7 @@ function record(request, status) {
     void finish();
   }
 }
-let browser, finishing = false;
+let browser, persistentContext, finishing = false;
 let stage = 'LAUNCH';
 const progress = (next) => { stage = next; console.error(`[observe] ${next}`); };
 const bounded = (promise, milliseconds) => new Promise((resolve, reject) => {
@@ -63,10 +67,10 @@ async function finish() {
   finishing = true;
   clearTimeout(watchdog);
   summary.lastStage = stage;
-  if (manual) { summary.events = events; summary.identityVerified = false; summary.sessionSaved = false; }
+  if (manual) { summary.events = events; summary.identityVerified = false; summary.sessionSaved = profile ? null : false; summary.sessionExported = false; }
   progress('CLEANUP');
-  if (browser) {
-    try { await bounded(browser.close(), 5_000); summary.cleanup = 'CLOSED'; }
+  if (persistentContext || browser) {
+    try { await bounded(persistentContext ? persistentContext.close() : browser.close(), 5_000); summary.cleanup = 'CLOSED'; }
     catch { summary.cleanup = 'CLOSE_FAILED_OR_TIMED_OUT'; }
   }
   // A stuck protocol connection must not prevent the diagnostic result from appearing.
@@ -83,13 +87,27 @@ const watchdog = setTimeout(() => {
 process.once('SIGINT', () => { summary.outcome = 'CANCELLED'; void finish(); });
 try {
   progress('LAUNCH');
-  browser = await chromium.launch({ headless: false, ...(channel ? { channel } : {}) });
-  summary.browserVersion = browser.version();
-  // An isolated temporary context; never import the user's profile or storageState.
-  progress('CREATE_CONTEXT');
-  const context = await bounded(browser.newContext(), 10_000);
+  let context;
+  if (profile) {
+    console.error('[observe] PERSISTENT_PROFILE: browser-managed cookies and storage remain in the dedicated directory.');
+    persistentContext = await chromium.launchPersistentContext(profile, {
+      channel: 'chrome', headless: false, viewport: null,
+    });
+    context = persistentContext;
+    browser = context.browser();
+    summary.browserVersion = browser?.version() ?? null;
+  } else {
+    browser = await chromium.launch({ headless: false, ...(channel ? { channel } : {}) });
+    summary.browserVersion = browser.version();
+    progress('CREATE_CONTEXT');
+    context = await bounded(browser.newContext({ viewport: null }), 10_000);
+  }
+  if (profile) {
+    const initialCookies = await bounded(context.cookies(['https://x.com/', 'https://jf.x.com/']), 5_000);
+    summary.initialAuthCookiePresent = initialCookies.some((c) => ['auth_token', 'twid'].includes(c.name) && !!c.value);
+  }
   progress('CREATE_PAGE');
-  const page = await bounded(context.newPage(), 10_000);
+  const page = profile && context.pages().length ? context.pages()[0] : await bounded(context.newPage(), 10_000);
   const pending = new Set();
   const track = (promise) => {
     pending.add(promise);
@@ -136,7 +154,7 @@ try {
   else {
     if (manual) {
       progress('WAIT_FOR_MANUAL_LOGIN');
-      console.error('请仅在浏览器输入账号、密码和验证码。进入首页后回到终端按 Enter 结束。未知挑战请按 Ctrl+C 停止；最多等待10分钟。不保存会话。');
+      console.error('请仅在浏览器输入账号、密码和验证码。进入首页后回到终端按 Enter 结束。未知挑战请按 Ctrl+C 停止；最多等待10分钟。' + (profile ? '专用目录会保留浏览器登录态。' : '不保存会话。'));
       const { createInterface } = await import('node:readline');
       const input = createInterface({ input: process.stdin, terminal: false });
       try { await new Promise((resolve) => { input.once('line', resolve); input.once('close', resolve); }); }

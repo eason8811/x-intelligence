@@ -9,6 +9,7 @@ function run(mode) {
   const directory = mkdtempSync(join(tmpdir(), 'bootstrap-observer-'));
   try {
     const fake = `
+import { parseOptions, prepareProfile } from '${new URL('./browser-profile.mjs', import.meta.url).href}';
 const handlers = {};
 const page = { on() {}, url: () => '${mode === 'manual' ? 'https://x.com/home' : 'https://x.com/'}', async goto() {
  handlers.request?.({url:()=> 'https://x.com/', allHeaders:()=>new Promise(()=>{})});
@@ -22,17 +23,20 @@ const page = { on() {}, url: () => '${mode === 'manual' ? 'https://x.com/home' :
  }
  return {status:()=>200};
 } };
-const context = { on(name, fn) {handlers[name]=fn;},
+const context = { pages:()=>[], browser:()=>({version:()=> 'synthetic-persistent'}), close:async()=>{}, on(name, fn) {handlers[name]=fn;},
  newPage: () => ${mode === 'page-stuck' ? 'new Promise(()=>{})' : 'Promise.resolve(page)'},
  cookies: async () => '${mode}' === 'manual' ? [{name:'auth_token',value:'SECRET_COOKIE'}] : [] };
-const chromium = {launch: async () => ({version:()=> 'synthetic',newContext:async()=>context,
+const chromium = {launchPersistentContext:async (dir, options) => {
+ if(options.channel !== 'chrome' || options.headless !== false || options.viewport !== null || options.args || options.userAgent) throw Error('bad config');
+ return context;
+},launch: async () => ({version:()=> 'synthetic',newContext:async()=>context,
  close: () => ${mode === 'close-stuck' ? 'new Promise(()=>{})' : 'Promise.resolve()'}})};
 `;
-    let script = fake + source.slice(source.indexOf('const manual ='));
+    let script = fake + source.slice(source.indexOf('let options;'));
     for (const [from, to] of [['60_000','500'], ['15_000','5'], ['10_000','20'], ['5_000','30'], ['3_000','10'], ['1_000','10']])
       script = script.replaceAll(from, to);
     const file = join(directory, 'probe.mjs'); writeFileSync(file, script);
-    const result = spawnSync(process.execPath, [file, ...(mode === 'manual' ? ['--login'] : [])], { encoding:'utf8', timeout:3000, input:'\n' });
+    const result = spawnSync(process.execPath, [file, ...(mode === 'manual' ? ['--login'] : []), ...(mode === 'persistent' ? ['--profile', join(directory, 'profile')] : [])], { encoding:'utf8', timeout:3000, input:'\n' });
     assert.equal(result.signal, null); assert.equal(result.error, undefined);
     return { ...result, summary:JSON.parse(result.stdout) };
   } finally { rmSync(directory, {recursive:true, force:true}); }
@@ -63,4 +67,12 @@ test('manual mode records paired known stages without credentials and leaves ide
     ['begin_login','login_enter_password','signals','begin_login_acid','finish_login_acid']);
   assert.equal(result.stdout.includes('SECRET'), false);
   assert.equal(result.stderr.includes('SECRET'), false);
+});
+
+test('dedicated profile selects persistent Chrome with native window and no fingerprint overrides', () => {
+  const result = run('persistent');
+  assert.equal(result.status, 0);
+  assert.equal(result.summary.profilePersistenceEnabled, true);
+  assert.equal(result.summary.browserVersion, 'synthetic-persistent');
+  assert.equal(result.summary.cleanup, 'CLOSED');
 });

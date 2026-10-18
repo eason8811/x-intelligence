@@ -332,3 +332,7 @@ landing HTTP 200、6465 字节，新 codec 与状态提取返回 ACCOUNT_REQUIRE
 ### 第二十一轮：人工授权登录观测模式
 
 2026-10-18 用户同意扩展人工登录观测。先提交既有超时修复 e757dd3，随后为工具新增显式 --login 模式：用户在临时本地 Chrome 输入凭证，终端 Enter 结束，最长 10 分钟。仅记录已知 action/signals 元数据时间线，未知 action 停止；不读取请求正文，不保存会话，不将候选登录判为身份验收。3 个 mock 子进程测试通过；真实人工流程等待用户本地执行。步骤见 browser-bootstrap-observation.md。
+
+### 第二十二轮：正常 Chrome 配置与持久化目录对照
+
+用户要求将 Playwright 正常配置贴近日常环境并自行比较。新增显式仓库外 --profile 与 --prepare-profile；持久化 Chrome、实际窗口，系统语言/时区不覆盖，不改 UA/指纹/默认启动参数。目录用途标记保护，拒绝默认日常目录和非空未知目录；不导出会话。新增摘要区分持久化与应用会话验收。6 项离线测试通过，Windows 手动/Playwright 同目录比较待用户执行；尚未提交。

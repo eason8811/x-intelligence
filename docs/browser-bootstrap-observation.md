@@ -73,3 +73,37 @@ node tools/investigation/observe-login-bootstrap.mjs chrome --login > login-summ
 观察到 /home 路径及账号 Cookie 只标记 LOGIN_CANDIDATE_UNVERIFIED；始终输出 identityVerified=false、sessionSaved=false，不输出账号名或 ID，也不进行独立远端身份校验。身份确认与新进程复用为后续阶段。10 分钟超时可能销毁本次临时登录成果；当前不保存会话。
 
 验证：3 个隔离子进程用例覆盖未返回元数据、页面创建/关闭卡住，以及五个已知登录/信号阶段的请求响应配对和秘密值排除。仅 mock 验证，不是本地 Chrome 的人工登录验收。真实账号测试需在用户电脑执行。
+
+## 专用持久化 Chrome 对照（2026-10-18）
+
+用户授权配置正常浏览器环境并进行对照。新增可选 --profile ABSOLUTE_PATH；使用本机 channel=chrome、headless=false、viewport=null，不覆盖语言、时区、UA、权限、代理、canvas/WebGL 或自动化标记，不删 Playwright 默认启动参数。无 --profile 仍使用临时上下文，但同样改用实际窗口尺寸。网络出口由本机实际配置决定，工具不自动证明它是白名单 IP；同电脑不必然意味着同代理规则。
+
+持久化目录必须位于仓库外，首次为空；工具写入用途标记后可以重复使用。拒绝仓库内目录、Chrome 常见默认用户目录及无标记的非空目录；不复制/删除日常 profile，不导入 Cookie。目录由 Chrome 管理，可能保留账号凭证，绝不能上传、提交或分享。此为用户明确选择的本地持久化对照，修订前述“所有模式不保存状态”的限制；不等于已实现应用会话导出或跨进程账号身份验收。摘要 profilePersistenceEnabled=true、sessionExported=false、sessionSaved=null（未验证持久化结果），不打印目录路径。
+
+### PowerShell 操作
+
+先在日常 Chrome 的 chrome://version 确认实际可执行文件路径，下面 $chrome 如不同则按实际修改。所有命令从仓库根目录运行。
+
+```powershell
+$profile = Join-Path $env:LOCALAPPDATA 'XIntelligence\ChromeCompare'
+$chrome = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
+node tools/investigation/observe-login-bootstrap.mjs --profile "$profile" --prepare-profile
+```
+
+prepare 只准备专用目录，不启动浏览器、不联网。之后可先手动打开该目录确认页面及个人所需正常设置，不登录 Google 同步账号、不导入日常 profile：
+
+```powershell
+& $chrome "--user-data-dir=$profile" 'https://x.com/'
+```
+
+完全关闭这个专用窗口，再运行 Playwright 对照，禁止两个进程同时使用同一目录：
+
+```powershell
+node tools/investigation/observe-login-bootstrap.mjs chrome --login --profile "$profile" > playwright-profile-summary.json
+```
+
+在窗口自行登录，结束后终端 Enter。若 Playwright 登录失败，不反复尝试；关闭后用前面的手动 Chrome 命令重新打开同一目录，手动对照并记录是否成功、失败步骤、可见提示及是否需要验证码。不要发送凭证或 profile。向调查方提供脱敏 JSON 和上述结果即可。
+
+若手动登录先成功，再运行 Playwright 直接进入首页，这是已有会话复用，不是 Playwright 登录成功。需要比较登录路径时，通过站点正常退出使其回到未登录页面，再测试；记录退出、尝试顺序与已有会话情况。前次尝试可能改变服务端状态，此比较不能严格归因于单一启动参数，不自动清除或克隆已认证 profile。专用目录也不等于原有日常 profile；若手动打开专用目录同样失败，应先调查日常状态/代理/策略差异，而不是归因 Playwright。
+
+验证：6 项离线测试覆盖参数、目录保护、临时模式回归、人工阶段脱敏、持久化启动配置与关闭。未在服务器发 X 请求，未执行 Windows Chrome 对照；需用户本地验证。Playwright 官方 API 依据： https://github.com/microsoft/playwright/blob/v1.63.0/docs/src/api/class-browsertype.md 。
