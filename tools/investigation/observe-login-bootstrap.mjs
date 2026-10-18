@@ -17,13 +17,46 @@ const summary = {
     headerRequests: 0, matchingCurrentGt: 0, transactionHeaderRequests: 0 },
   cleanup: 'NOT_LAUNCHED',
 };
-let browser;
+let browser, finishing = false;
+let stage = 'LAUNCH';
+const progress = (next) => { stage = next; console.error(`[observe] ${next}`); };
+const bounded = (promise, milliseconds) => new Promise((resolve, reject) => {
+  const timer = setTimeout(() => reject(new Error('OBSERVATION_TIMEOUT')), milliseconds);
+  Promise.resolve(promise).then(
+    (result) => { clearTimeout(timer); resolve(result); },
+    (error) => { clearTimeout(timer); reject(error); },
+  );
+});
+async function finish() {
+  if (finishing) return;
+  finishing = true;
+  clearTimeout(watchdog);
+  summary.lastStage = stage;
+  progress('CLEANUP');
+  if (browser) {
+    try { await bounded(browser.close(), 5_000); summary.cleanup = 'CLOSED'; }
+    catch { summary.cleanup = 'CLOSE_FAILED_OR_TIMED_OUT'; }
+  }
+  // A stuck protocol connection must not prevent the diagnostic result from appearing.
+  const exitCode = summary.outcome === 'OBSERVATION_COMPLETE_UNVERIFIED' && summary.cleanup === 'CLOSED' ? 0 : 1;
+  const exitTimer = setTimeout(() => process.exit(exitCode), 1_000);
+  process.stdout.write(JSON.stringify(summary, null, 2) + '\n', () => {
+    clearTimeout(exitTimer); process.exit(exitCode);
+  });
+}
+const watchdog = setTimeout(() => {
+  summary.outcome = 'OBSERVATION_TOTAL_TIMEOUT';
+  void finish();
+}, 60_000);
 try {
+  progress('LAUNCH');
   browser = await chromium.launch({ headless: false, ...(channel ? { channel } : {}) });
   summary.browserVersion = browser.version();
   // An isolated temporary context; never import the user's profile or storageState.
-  const context = await browser.newContext();
-  const page = await context.newPage();
+  progress('CREATE_CONTEXT');
+  const context = await bounded(browser.newContext(), 10_000);
+  progress('CREATE_PAGE');
+  const page = await bounded(context.newPage(), 10_000);
   const pending = new Set();
   const track = (promise) => {
     pending.add(promise);
@@ -37,11 +70,11 @@ try {
     // Only compare scoped guest values in memory; never emit headers or tokens.
     if (!['https://x.com', 'https://jf.x.com', 'https://api.x.com'].includes(url.origin)) return;
     track((async () => {
-      const headers = await request.allHeaders();
+      const headers = await bounded(request.allHeaders(), 3_000);
       if (headers['x-client-transaction-id']) summary.guest.transactionHeaderRequests++;
       if (!headers['x-guest-token']) return;
       summary.guest.headerRequests++;
-      const current = (await context.cookies(request.url())).filter((c) => c.name === 'gt');
+      const current = (await bounded(context.cookies(request.url()), 3_000)).filter((c) => c.name === 'gt');
       if (current.length === 1 && current[0].value === headers['x-guest-token'])
         summary.guest.matchingCurrentGt++;
     })().catch(() => { summary.pageErrors++; }));
@@ -61,16 +94,20 @@ try {
     if (/\/sign\.o[-.]/.test(url.pathname)) summary.scripts.transaction++;
   });
   // Observe normal site activity only. No filling, clicking, SDK invocation or request interception.
+  progress('NAVIGATE');
   const response = await page.goto('https://x.com/', { waitUntil: 'domcontentloaded', timeout: 30_000 });
   summary.homepageStatus = response?.status() ?? null;
   if (summary.homepageStatus !== 200) summary.outcome = 'HOMEPAGE_REFUSED';
   else {
-    await page.waitForTimeout(15_000);
+    progress('OBSERVE_15_SECONDS');
+    await new Promise((resolve) => setTimeout(resolve, 15_000));
     summary.outcome = 'OBSERVATION_COMPLETE_UNVERIFIED';
   }
   summary.finalOrigin = new URL(page.url()).origin;
-  await Promise.allSettled([...pending]);
-  const cookies = await context.cookies(['https://x.com/', 'https://jf.x.com/']);
+  progress('DRAIN_METADATA');
+  await bounded(Promise.allSettled([...pending]), 5_000);
+  progress('READ_COOKIE_PRESENCE');
+  const cookies = await bounded(context.cookies(['https://x.com/', 'https://jf.x.com/']), 5_000);
   summary.guest.gtPresent = cookies.some((c) => c.name === 'gt' && !!c.value);
   summary.guest.guestIdPresent = cookies.some((c) => c.name === 'guest_id' && !!c.value);
   summary.guest.authCookiePresent = cookies.some((c) => ['auth_token', 'twid'].includes(c.name) && !!c.value);
@@ -78,9 +115,5 @@ try {
 } catch {
   summary.outcome = 'OBSERVATION_FAILED';
 } finally {
-  if (browser) {
-    try { await browser.close(); summary.cleanup = 'CLOSED'; }
-    catch { summary.cleanup = 'CLOSE_FAILED'; }
-  }
-  console.log(JSON.stringify(summary, null, 2));
+  await finish();
 }

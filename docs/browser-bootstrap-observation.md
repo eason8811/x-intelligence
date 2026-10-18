@@ -31,3 +31,25 @@ node tools/investigation/observe-login-bootstrap.mjs chrome
 - REA 已实际启动服务器浏览器，得到上述局部 403 证据并报告清理完成。
 - 本地工具仅完成 `node --check` 语法检查；尚未在用户电脑运行，不能声称本地观察成功。
 - 文档与 diff 检查通过；本轮没有改业务登录代码、切换 CLI 或提交 Git。
+
+## 本地首次摘要与工具超时修复
+
+用户提供的终端摘要：开始时间 2026-10-17T15:24:56.240Z，Chrome 155.0.8059.80，homepage=200，最终 origin=https://x.com，landingStatuses=[200]；164 请求、1 failedRequest、1 pageError。Castle 脚本 1、transaction 脚本 1、Prelude 脚本 0；signalsStatuses=[]、actionRequests=0。gt/guest_id 存在、账号 Cookie 不存在；9 个 guest 头均与读取时当前 gt 匹配，9 个请求包含 transaction 头。此为用户本地运行回传，服务器未独立复现；脚本加载与头存在不证明生成过程、服务端必要性或账号登录成功。
+
+用户报告超过 3 分钟无输出、手动关闭窗口后才出现摘要，outcome=OBSERVATION_COMPLETE_UNVERIFIED、cleanup=CLOSED。旧摘要无阶段时间线，不能定位唯一挂点，也不能由 CLOSED 推断脚本自动关闭成功。旧实现的 allHeaders、cookies、pending drain 与 browser.close 都缺少外部截止，且最终输出位于关闭之后；这是已确认的工具健壮性缺陷，不能把首页正常显示解释为 Prelude 阻塞。
+
+工具现输出 stderr 阶段提示，并对元数据读取、上下文/页面创建及清理加截止；60 秒总 watchdog，关闭再限 5 秒，最后输出一份 stdout JSON 并退出。新增 lastStage；超时/清理失败有固定结果，不输出原始异常。清理超时可能仍残留浏览器窗口，不能把强制结束 Node 等同于浏览器清理。摘要仍只写 stdout，不自动生成文件。
+
+复测可将 stdout 保存为文件（进度仍在终端）：
+
+```powershell
+node tools/investigation/observe-login-bootstrap.mjs chrome > bootstrap-summary.json
+```
+
+不要操作窗口。新增两个隔离子进程测试，模拟永不返回的请求头、页面创建和关闭，确认能够限时输出退出；这不是 Windows Chrome 实测。脚本语法与 diff 检查通过，尚待本地复测修复版本。
+
+## Prelude 的调用阶段
+
+本地首页摘要没有 signals，符合当前观察范围。历史授权登录样本中，提交密码后响应导航至 prelude_gate，关联 begin_login_acid；正常客户端的 Input2PreludeToken 路径加载 signals 模块并调用 dispatchSignals，成功提交 signals 后回填同次 dispatch ID，再由正常页面推进验证准备与验证码流程。网络时间接近不能单独证明严格先后，客户端调用链才支持返回 ID 的条件。其他账号、挑战分支或未来版本可能不同，不断言每次登录都走此分支。
+
+Prelude 影响的是该验证准备分支的纯 Node 重建：服务端表单要求 prelude_dispatch_id，正常来源是依赖浏览器上下文的 SDK 执行结果。缺少这个正常提供者时不能用历史值或随机数替代。它不阻塞无账号首页或已实测的 landing GET，也不是本次观测工具应等待的成功条件。

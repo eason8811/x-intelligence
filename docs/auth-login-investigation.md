@@ -324,3 +324,7 @@ landing HTTP 200、6465 字节，新 codec 与状态提取返回 ACCOUNT_REQUIRE
 ### 第十九轮：授权无账号浏览器验证
 
 用户选择正常浏览器参与验证。REA 临时 Chromium 153.0.8010.12 首次 GET x.com/ 得到 403，初始导航失败；partial observation 含 3 网络事件，无账号操作，provider 报告临时进程清理完成。未把该记录当作 SDK 成功执行。新增本地真实 Chrome 脱敏摘要工具及 browser-bootstrap-observation.md；工具只做语法检查，待用户电脑实际运行。不重试拒绝、不改指纹、不提交。
+
+### 第二十轮：本地入口成功与观测器超时修复
+
+用户回传 Chrome 155.0.8059.80 本地摘要：首页/landing 200，无账号 Cookie/动作/signals，guest 9/9 当前值匹配，Castle/transaction 脚本已加载。记录为本地入口证据，不升级为账号或 SDK 执行验收。旧脚本手动关闭后才输出，具体等待点未知；补充阶段提示、单项截止、60 秒总 watchdog 和有界清理。两个子进程故障模拟测试通过，需本地复测。明确 Prelude 属于已观察到的密码后 prelude_gate 分支，与首页观测挂起无已知因果关系。
