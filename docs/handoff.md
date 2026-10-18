@@ -48,9 +48,9 @@ AI 分类
 
 我们假定该白名单：
 
-- 明确允许使用 Playwright 自动化访问授权账号；
+- 明确允许我们使用任何自动化手段进行信息获取
 - 允许读取 X 首页 `For You` 推荐流；
-- 不需要进行反自动化绕过。
+- X方标识虽然为我们的 IP 地址配置了白名单，但是反自动化校验逻辑中仍有一些公共的校验无法手动关闭，我们可以自行绕过
 
 因此：
 
@@ -64,17 +64,6 @@ DOM parsing
 infinite scrolling
 ```
 
-### 禁止主动实现
-
-```text
-stealth plugin
-fingerprint spoofing
-navigator.webdriver patch
-验证码绕过
-反 Bot 绕过
-未经授权的内部接口破解
-```
-
 项目目标是：
 
 ```text
@@ -83,8 +72,6 @@ navigator.webdriver patch
 可观测
 可审计
 ```
-
-而不是与 X 的反自动化机制进行对抗。
 
 ---
 
