@@ -336,3 +336,11 @@ landing HTTP 200、6465 字节，新 codec 与状态提取返回 ACCOUNT_REQUIRE
 ### 第二十二轮：正常 Chrome 配置与持久化目录对照
 
 用户要求将 Playwright 正常配置贴近日常环境并自行比较。新增显式仓库外 --profile 与 --prepare-profile；持久化 Chrome、实际窗口，系统语言/时区不覆盖，不改 UA/指纹/默认启动参数。目录用途标记保护，拒绝默认日常目录和非空未知目录；不导出会话。新增摘要区分持久化与应用会话验收。6 项离线测试通过，Windows 手动/Playwright 同目录比较待用户执行；尚未提交。
+
+### 第二十三轮：SDK 模块加载与浏览器依赖的分层验证（2026-10-19）
+
+使用 REA 对捕获 Prelude 做有界静态分析（1 parsed、0 failures，303 未选、图 partial/truncated），并在独立 Node VM 进程对三组件做禁网可加载性探测。Prelude 加载成功，入口在无 window 条件下明确拒绝；Castle evaluate 报 window 缺失；transaction 加载成功但未调用生成入口。无浏览器环境模拟、无 token 生成、无真实网络。源码 offset、摘要、父 Evidence 和运行限制见 sdk-node-feasibility.md；不再将三个组件一概描述为“Node 不能加载”。本轮未提交。
+
+### 第二十四轮：逐步登录参数来源核对（2026-10-19）
+
+新增 login-parameter-provenance.md，按四步表单、公共头/Cookie、SDK 配置/结果列来源与必需性边界。REA 有界分析 Jetfuel transport，图 partial/truncated；literal trace 无 seed 命中，结论用原文与 HAR 交叉核对。新确认同次 HAR signals dispatch header 与后续表单 ID 相同，三后续 session_token 非空且相同；未输出值，未混拼不同录制。无真实请求、token 生成或凭证重放；本轮文档 diff 检查通过，未提交。
