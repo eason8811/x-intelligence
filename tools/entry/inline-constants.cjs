@@ -64,9 +64,9 @@ function friendlyIntrinsicName(name) {
 function options(argv) {
     const opt = {
         mode: 'strict',
-        input: 'output/deobfuscated.js',
-        output: 'output/deobfuscated.inlined.js',
-        report: 'output/inline-report.json',
+        input: 'source/deobs/castle.umd.js',
+        output: 'source/inline/castle.umd.js',
+        report: 'source/inline/castle-umd/inline-report.json',
         bootstrapRoot: null,
         nativeAliases: 'off'
     };
