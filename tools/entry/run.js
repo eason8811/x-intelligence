@@ -31,7 +31,7 @@ global.screen = {width: 1920, height: 1080};
 // === 2. 引入 SDK ===
 // 如果 require 进来是一个空对象，说明它只尝试挂载到 window，可以尝试从 global 中获取
 // const CastleSDK = require('./castle.umd-DpX19jpb.js');
-const CastleSDK = require('../output/deobfuscated.inlined.js');
+const CastleSDK = require('../../source/inline/castle.umd.js');
 const sdkInstance = CastleSDK.default || CastleSDK || global.Castle;
 
 console.log("SDK 导出对象:", CastleSDK);
