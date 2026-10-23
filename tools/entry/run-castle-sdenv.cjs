@@ -4,6 +4,9 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const {
+  installTextEncoding
+} = require('../sdenv/polyfills/text-encoding.cjs');
 
 const { jsdomFromText } = require('sdenv');
 
@@ -54,6 +57,8 @@ async function main() {
 
   const { window } = dom;
   const context = dom.getInternalVMContext();
+  // 初始化 sdenv 后
+  installTextEncoding(dom.window);
 
   try {
     // 前面的测试已证明该标志影响 document.body
