@@ -1,0 +1,27 @@
+{
+  "scriptVersion": "3.0.0-native-aliases",
+  "mode": "strict",
+  "nativeAliases": "off",
+  "sourceFile": "/home/codex/codes/x-intelligence/source/deobs/rolldown-runtime.js",
+  "outputFile": "/home/codex/codes/x-intelligence/source/inline/rolldown-runtime.js",
+  "candidates": 0,
+  "eligibleBindings": 0,
+  "fullyInlinedBindings": 0,
+  "partiallyInlinedBindings": 0,
+  "replacedReferences": 0,
+  "skippedReferences": 0,
+  "skipReasons": {},
+  "perBinding": [],
+  "intrinsicCandidates": 0,
+  "renamedIntrinsicBindings": 0,
+  "renamedIntrinsics": [],
+  "optimizedMemberExpressions": 0,
+  "bootstrap": null,
+  "possiblyExecutedDuringBootFunctions": 0,
+  "examples": {},
+  "caveats": [
+    "Syntactic validity does not prove runtime equivalence.",
+    "Bootstrap mode assumes helper functions are not invoked before the initializer completes.",
+    "Dynamically executed code (for example eval/Function) cannot be proven safe by this static analysis."
+  ]
+}
