@@ -7,6 +7,7 @@ const vm = require('node:vm');
 const {
   installTextEncoding
 } = require('../sdenv/polyfills/text-encoding.cjs');
+const crypto = require('node:crypto');
 
 const { jsdomFromText } = require('sdenv');
 
@@ -16,6 +17,7 @@ const SDK_PATH = path.join(
   ROOT,
   'source/runtime/castle.deobs.iife.js'
 );
+const SHOW_TOKEN = '1';
 
 const TEST_URL =
   process.env.SDK_TEST_URL || 'https://example.test/';
@@ -191,8 +193,24 @@ async function main() {
     });
 
     // 显式开启才输出完整结果，避免意外泄漏令牌
-    if (process.env.SHOW_TOKEN === '1') {
+    if (SHOW_TOKEN === '1') {
       console.log('SDK result:', result);
+    }
+
+    if (typeof result === 'string') {
+      console.log('=== Token 结构检查 ===');
+
+      console.dir({
+        length: result.length,
+        empty: result.length === 0,
+        asciiOnly: /^[\x00-\x7F]*$/.test(result),
+        base64Like: /^[A-Za-z0-9+/]+={0,2}$/.test(result),
+        base64UrlLike: /^[A-Za-z0-9_-]+={0,2}$/.test(result),
+        sha256: crypto
+            .createHash('sha256')
+            .update(result, 'utf8')
+            .digest('hex')
+      });
     }
 
   } catch (error) {
