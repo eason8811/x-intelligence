@@ -7,7 +7,8 @@ global.navigator = {
     language: "zh-CN",
     languages: ["zh-CN", "zh"],
     deviceMemory: 8,
-    hardwareConcurrency: 8
+    hardwareConcurrency: 8,
+    plugins: []
 };
 global.document = {
     createElement: function (tag) {
