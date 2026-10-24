@@ -6,6 +6,7 @@
     "node": ">=22.14.0"
   },
   "scripts": {
+    "x:auth:offline": "pnpm --filter @x-intelligence/collector exec tsx ../../tools/offline/login-demo.ts",
     "dev": "turbo run dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
