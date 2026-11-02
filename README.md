@@ -2,11 +2,11 @@
 
 将授权 X For You 推荐流转换为结构化、可分类、可检索的信息收件箱。
 
-项目基线见 [交接文档](docs/handoff.md)，开发约束见 [AGENTS.md](AGENTS.md)。当前实现范围为 Phase 1；尚未接入 X、Jev 或生产调度。
+项目基线见 [交接文档](docs/handoff.md)，开发约束见 [AGENTS.md](AGENTS.md)。当前包含产品骨架与自研 JP-5 登录基础模块；真实登录、采集入库、Jev 和生产调度尚未验收。
 
 ## 环境与运行
 
-使用 Node.js 22.14+ 和 pnpm 11.24.0（版本固定于 packageManager），推荐 Node.js 24 LTS。
+使用 Node.js 22.14+ 和 pnpm 12.9.1（版本固定于 packageManager），推荐 Node.js 24 LTS。
 
 ```bash
 pnpm install --frozen-lockfile
@@ -30,7 +30,7 @@ apps/
 packages/
   db/src/              # Schema、Neon 连接工厂
   db/drizzle/          # 版本化 SQL migration 与元数据
-  x/src/               # X DTO 导出，后续添加 parser/selector
+  x/src/               # X DTO、自研 JP-5 解码、表单与登录编排
   classifier/src/      # PostClassifier 接口
   shared/src/          # DTO、主题及任务状态
 docs/                 # 交接及阶段验证记录
@@ -56,32 +56,18 @@ pnpm db:migrate
 
 真实密钥和 Playwright storageState 不提交 Git；使用服务端环境变量，不加 NEXT_PUBLIC_ 前缀。生产登录态加密与 Private Blob 在后续阶段实现。
 
-Phase 2 已调整为保留人工登录、接入 twitter-monitor Web GraphQL 并先进行小规模验证；验证后推进幂等事务写入及采集状态记录，稳定后再接 Jev。并发任务领取、超时恢复及 SUCCESS/PARTIAL 判定需要在 job 实现时明确。
+当前转向自研 JP-5 登录编排；旧 twitter-monitor 实现、For You 采集探针和专属依赖已移除。四个共享包、数据库模型和 Web 边界保持不变。SDK 源码和独立调查工具保留，不接入生产登录。
 
-## X 终端登录
-
-```bash
-pnpm install --frozen-lockfile
-pnpm x:auth
-```
-
-使用 twitter-monitor 固定版本的 Web HTTP 登录流程，不打开浏览器。按终端提示输入用户名、密码及必要的验证码；密码和验证码隐藏输入，不写入文件。Viewer 验证后确认账号，才保存 `playwright/.auth/x.json`。已有文件需要确认覆盖，失败或取消保留旧会话。
-
-不再需要 `pnpm x:auth:install`。旧的浏览器会话文件仍可用于探针；新文件仅包含两项 cookie，不是完整浏览器状态。账号凭证和验证码不要发送到聊天中。
+## 自研登录
 
 ```bash
 pnpm x:auth --help
 pnpm x:auth:test
+pnpm x:auth:offline
 ```
 
-流程、限制及验证边界见 [登录工具](docs/manual-login.md)。
+`pnpm x:auth` 已切换为自研入口。当前生产适配器尚未实现，会以 `AUTH_RUNTIME_UNAVAILABLE` 非零退出，在读取账号凭证、发起网络请求、覆盖会话之前停止。
 
-## Web GraphQL 采集探针
+自研编排按服务端状态构建表单、处理隐藏密码与验证码输入、阻止循环/未知状态，完成候选必须经过独立身份验证及用户确认，之后才允许保存会话。真实运行还缺少同会话 Castle/transaction/Prelude 提供者、POST 传输和认证会话适配；离线测试不代表这些能力已实现。
 
-按本次确认保留 twitter-monitor 原始 HTTP/TLS 行为，先验证一页：
-
-```bash
-pnpm x:collect:probe --count 10 --pages 1
-```
-
-需已有本地登录态；结果写入被 Git 忽略的 `debug-artifacts/x-probe/`。不写数据库，推荐顺序尚待人工对照。依赖、最小兼容补丁及验证步骤见 [接入验证说明](docs/twitter-monitor-probe.md)。
+`x:auth:offline` 仅运行合成状态演示，不访问网络或执行 SDK。原有私有会话文件保留，不读取、不迁移、不删除。详见 [登录工具](docs/manual-login.md)。

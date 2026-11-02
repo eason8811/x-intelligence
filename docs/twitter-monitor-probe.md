@@ -1,3 +1,5 @@
+> 2026-11-02 状态修订：twitter-monitor 与采集探针已移除，登录入口转为自研 JP-5；本文旧入口及上游描述仅为历史记录。当前使用方式以 [登录工具](manual-login.md) 为准。
+
 # twitter-monitor 小规模接入验证
 
 保留现有 Monorepo 和数据库边界，采集与终端登录复用 twitter-monitor 固定版本核心。当前提供授权 Web GraphQL 的本地探针，不写数据库、不调用 Jev、不启动生产 Cron。
