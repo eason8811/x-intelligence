@@ -2,7 +2,9 @@
 
 ## 当前入口
 
-运行 `pnpm x:auth`。命令启动本地可见的 Patchright Chromium，打开 X 登录页；用户在浏览器中手动完成密码、验证码或页面要求的验证。程序不会读取或自动填写这些凭证。
+运行 `pnpm x:auth`。命令通过 Patchright 启动本机已安装的 Google Chrome Stable，打开 X 登录页；用户在浏览器中手动完成密码、验证码或页面要求的验证。程序不会读取或自动填写这些凭证。
+
+登录时使用独立的临时浏览器上下文，不读取或复用日常 Chrome 个人资料；关闭窗口后，登录态从加密保存的 `storageState` 复用。系统需能在标准安装位置找到 Google Chrome Stable。
 
 完成后，用户进入 `https://x.com/home` 并回到终端确认。程序检查当前 URL 及当前浏览器上下文中的 `auth_token`、`ct0` Cookie，再要求输入一个仅用于区分会话的账号名并二次确认。已存在的 `x-primary` 会话只有在确认后才会被新登录替换；取消、超时或校验失败会保留原记录。
 
@@ -26,11 +28,7 @@ Patchright 的 `BrowserContext.storageState({ indexedDB: true })` 作为整体�
    ```
 
 3. 先审阅新增 migration，再对目标数据库执行 `pnpm db:migrate`。
-4. 安装 Patchright Chromium：
-
-   ```sh
-   pnpm --filter @x-intelligence/collector exec patchright install chromium
-   ```
+4. 确认本机已安装 Google Chrome Stable。Patchright 会使用系统 Chrome，无需另行安装 Patchright Chromium。若 Chrome 安装在非标准位置而 Patchright 无法启动，请提供 Chrome 可执行文件路径；不要改用日常 Chrome 用户资料目录。
 
 5. 启动 `pnpm x:auth`，在打开的浏览器窗口中完成登录。
 

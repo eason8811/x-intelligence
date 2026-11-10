@@ -10,7 +10,7 @@
 
 ## 当前范围
 
-当前授权任务：将现有自研 JP-5 登录入口替换为本地可见的 Patchright Chromium 人工登录，并把登录后的浏览器会话以 AES-GCM 加密形式保存到 PostgreSQL。不得将登录密码、验证码或未加密会话状态写入日志或数据库。
+当前授权任务：使用 Patchright 启动本机已安装的 Google Chrome 进行可见人工登录，并把登录后的浏览器会话以 AES-GCM 加密形式保存到 PostgreSQL。不得将登录密码、验证码或未加密会话状态写入日志或数据库。
 
 - 使用 pnpm、Turborepo、TypeScript strict。
 - 保持 `apps/web`、`apps/collector` 和四个共享 package 的边界，不继续拆分 package。
@@ -53,4 +53,4 @@
 
 ## Patchright 人工登录与数据库加密存储修订（2026-11-10）
 
-用户明确要求推翻 JP-5 HTTP 编排，改用 Patchright 打开可见 Chromium，由用户手动完成登录。会话从同一浏览器上下文获取，校验 x.com 首页以及 auth_token/ct0 后，以 AES-256-GCM 加密完整 storageState，再写入 `x_auth_session`；加密密钥仅来自本地/部署环境变量 `X_AUTH_ENCRYPTION_KEY`。登录密码和验证码不经 CLI 收集，不保存 HAR、请求正文或请求头快照。Patchright 的自动化检测补丁仅用于此人工登录入口，其他反 Bot 绕过仍禁止。当前配置的 `DATABASE_URL` 已成功应用新增 migration；真实 X 登录与会话复用仍待授权账号验证。
+用户明确要求推翻 JP-5 HTTP 编排，改用 Patchright 启动本机已安装的 Google Chrome，由用户手动完成登录。会话从隔离的临时浏览器上下文获取，校验 x.com 首页以及 auth_token/ct0 后，以 AES-256-GCM 加密完整 storageState，再写入 `x_auth_session`；加密密钥仅来自本地/部署环境变量 `X_AUTH_ENCRYPTION_KEY`。登录密码和验证码不经 CLI 收集，不保存 HAR、请求正文或请求头快照。Patchright 的自动化检测补丁仅用于此人工登录入口，其他反 Bot 绕过仍禁止。当前配置的 `DATABASE_URL` 已成功应用新增 migration；真实 X 登录与会话复用仍待授权账号验证。

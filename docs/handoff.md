@@ -1997,6 +1997,6 @@ Jev
 
 ## Patchright 人工登录与数据库会话存储修订（2026-11-10）
 
-本修订取代 JP-5 CLI 登录运行时。`pnpm x:auth` 通过 Patchright 启动可见 Chromium，用户在浏览器中手动完成 X 登录；程序验证首页及 `auth_token`、`ct0`，将 `storageState({ indexedDB: true })` 以 AES-256-GCM 加密后保存到新增的 `x_auth_session` 表。密钥来自 `X_AUTH_ENCRYPTION_KEY`，不进入数据库。操作者确认账号名作为会话标签，代码尚不声称完成远端身份 API 校验。
+本修订取代 JP-5 CLI 登录运行时。`pnpm x:auth` 通过 Patchright 的 `channel: "chrome"` 启动本机已安装的 Google Chrome Stable，并使用隔离的临时浏览器上下文；用户在窗口中手动完成 X 登录。程序验证首页及 `auth_token`、`ct0`，将 `storageState({ indexedDB: true })` 以 AES-256-GCM 加密后保存到新增的 `x_auth_session` 表。密钥来自 `X_AUTH_ENCRYPTION_KEY`，不进入数据库。操作者确认账号名作为会话标签，代码尚不声称完成远端身份 API 校验。
 
 会话状态包含实际存在的 Cookie、localStorage 和 IndexedDB。程序不保存 HAR、登录正文、请求头、密码或验证码；请求级 Castle、Prelude、transaction 字段不从历史采集回放，由当前浏览器流程产生。现有 JP-5 源码和离线演示入口已删除，研究文档保留为历史证据。新增 migration 已成功应用到当前 `DATABASE_URL` 指向的 PostgreSQL；真实授权账号登录和会话复用仍待单独验收。Patchright 仅是本次登录入口的授权例外，不扩展为额外反 Bot 绕过。

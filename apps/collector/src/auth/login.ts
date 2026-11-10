@@ -68,7 +68,7 @@ function accountLabel(value: string): string {
 async function main(): Promise<void> {
   if (process.argv.includes("--help")) {
     console.log(
-      "pnpm x:auth\n打开 Patchright Chromium，由用户在窗口中手动完成 X 登录。\n验证 x.com 首页及 auth_token/ct0 后，将浏览器 storageState 加密保存到 PostgreSQL。\n密码和验证码只在浏览器中输入，不采集 HAR 或请求正文。",
+      "pnpm x:auth\n通过 Patchright 打开电脑中已安装的 Google Chrome，由用户在窗口中手动完成 X 登录。\n验证 x.com 首页及 auth_token/ct0 后，将浏览器 storageState 加密保存到 PostgreSQL。\n密码和验证码只在浏览器中输入，不采集 HAR 或请求正文。",
     );
     return;
   }
@@ -107,7 +107,7 @@ async function main(): Promise<void> {
       }
     }
 
-    browser = await chromium.launch({ headless: false });
+    browser = await chromium.launch({ channel: "chrome", headless: false });
     const context = await browser.newContext();
     const page = await context.newPage();
     await page.goto("https://x.com/login", {
@@ -162,7 +162,7 @@ main().catch((error: unknown) => {
     console.error(error.code);
   } else {
     console.error(
-      "AUTH_FAILED：会话未保存或旧会话未覆盖。原始异常、Cookie 和认证参数未输出；请检查数据库迁移及浏览器安装。",
+      "AUTH_FAILED：会话未保存或旧会话未覆盖。原始异常、Cookie 和认证参数未输出；请检查数据库连接、migration 及本机 Chrome。",
     );
   }
   process.exitCode = 1;
