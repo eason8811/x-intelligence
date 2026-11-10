@@ -1,111 +1,169 @@
-import { access } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
+import { config } from "dotenv";
 import { createInterface } from "node:readline/promises";
-import { Writable } from "node:stream";
-import { runJp5Login, Jp5LoginError } from "@x-intelligence/x";
-import { createLoginAdapter } from "./adapter";
-import { saveAuthState, type AuthState } from "./state";
+import { fileURLToPath } from "node:url";
+import { chromium, type Browser } from "patchright";
+import { createDatabase } from "@x-intelligence/db";
+import {
+  AuthStateError,
+  getStoredXAuthSession,
+  hasXAuthCookies,
+  isXHome,
+  saveXAuthState,
+  type AuthState,
+} from "./state";
 
-const statePath = fileURLToPath(
-  new URL("../../../../playwright/.auth/x.json", import.meta.url),
+const envPath = fileURLToPath(
+  new URL("../../../../.env", import.meta.url),
 );
-async function main() {
+const loginTimeoutMs = 15 * 60 * 1000;
+
+class AuthCliError extends Error {
+  constructor(public readonly code:
+    | "AUTH_CANCELLED"
+    | "AUTH_INVALID_ARGUMENT"
+    | "AUTH_INTERACTIVE_TERMINAL_REQUIRED"
+    | "AUTH_DATABASE_CONFIG_MISSING"
+    | "AUTH_ENCRYPTION_KEY_MISSING"
+    | "AUTH_ACCOUNT_LABEL_INVALID"
+    | "AUTH_NOT_CONFIRMED"
+    | "AUTH_LOGIN_PAGE_NOT_REACHED") {
+    super(code);
+  }
+}
+
+function ask(
+  question: string,
+  signal: AbortSignal,
+  cancel: () => void,
+): Promise<string> {
+  if (signal.aborted) throw new AuthCliError("AUTH_CANCELLED");
+  const terminal = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    terminal: true,
+  });
+  terminal.once("SIGINT", cancel);
+  const close = () => terminal.close();
+  signal.addEventListener("abort", close, { once: true });
+  return terminal
+    .question(question, { signal })
+    .catch((error: unknown) => {
+      if (signal.aborted) throw new AuthCliError("AUTH_CANCELLED");
+      throw error;
+    })
+    .finally(() => {
+      signal.removeEventListener("abort", close);
+      terminal.close();
+    });
+}
+
+function accountLabel(value: string): string {
+  const normalized = value.trim().replace(/^@/, "");
+  if (!/^[A-Za-z0-9_]{1,15}$/.test(normalized)) {
+    throw new AuthCliError("AUTH_ACCOUNT_LABEL_INVALID");
+  }
+  return normalized;
+}
+
+async function main(): Promise<void> {
   if (process.argv.includes("--help")) {
     console.log(
-      "pnpm x:auth\n使用自研 JP-5 登录编排。生产运行时尚未接入，当前命令会在输入凭证前停止。\n密码和验证码隐藏输入，不保存。独立验证身份并确认账号后才保存 playwright/.auth/x.json。\n已有会话须确认覆盖；失败保留旧会话。15 分钟超时，不自动重试。",
+      "pnpm x:auth\n打开 Patchright Chromium，由用户在窗口中手动完成 X 登录。\n验证 x.com 首页及 auth_token/ct0 后，将浏览器 storageState 加密保存到 PostgreSQL。\n密码和验证码只在浏览器中输入，不采集 HAR 或请求正文。",
     );
     return;
   }
-  if (process.argv.length > 2) throw new Jp5LoginError("AUTH_INVALID_ARGUMENT");
-  const adapter = createLoginAdapter();
-  adapter.assertAvailable();
-  if (!process.stdin.isTTY || !process.stdout.isTTY)
-    throw new Jp5LoginError("AUTH_INTERACTIVE_TERMINAL_REQUIRED");
+  if (process.argv.length > 2) throw new AuthCliError("AUTH_INVALID_ARGUMENT");
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    throw new AuthCliError("AUTH_INTERACTIVE_TERMINAL_REQUIRED");
+  }
+
+  config({ path: envPath, quiet: true });
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) throw new AuthCliError("AUTH_DATABASE_CONFIG_MISSING");
+  const encryptionKey = process.env.X_AUTH_ENCRYPTION_KEY;
+  if (!encryptionKey) throw new AuthCliError("AUTH_ENCRYPTION_KEY_MISSING");
+
+  const { db, pool } = createDatabase(connectionString);
   const controller = new AbortController();
-  const cancel = () => controller.abort();
+  let browser: Browser | undefined;
+  const cancel = () => {
+    controller.abort();
+    if (browser) void browser.close().catch(() => undefined);
+  };
+  const timer = setTimeout(cancel, loginTimeoutMs);
   process.once("SIGINT", cancel);
   process.once("SIGTERM", cancel);
-  const timer = setTimeout(cancel, 15 * 60 * 1000);
-  const prompt = async (label: string, secret = false) => {
-    if (controller.signal.aborted) throw new Jp5LoginError("AUTH_CANCELLED");
-    const output = secret
-      ? new Writable({
-          write(_chunk, _encoding, callback) {
-            callback();
-          },
-        })
-      : process.stdout;
-    const terminal = createInterface({
-      input: process.stdin,
-      output,
-      terminal: true,
-    });
-    terminal.on("SIGINT", cancel);
-    try {
-      process.stdout.write(label);
-      return await terminal.question("", { signal: controller.signal });
-    } finally {
-      terminal.close();
-      if (secret) {
-        output.end();
-        process.stdout.write("\n");
+
+  try {
+    const existing = await getStoredXAuthSession(db);
+    if (existing) {
+      const confirmation = await ask(
+        `数据库已有 @${existing.username} 会话。新登录成功后覆盖？输入 yes：`,
+        controller.signal,
+        cancel,
+      );
+      if (confirmation.trim() !== "yes") {
+        throw new AuthCliError("AUTH_CANCELLED");
       }
     }
-  };
-  try {
-    let exists = false;
-    try {
-      await access(statePath);
-      exists = true;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    }
-    if (
-      exists &&
-      (await prompt("已有登录态。成功后覆盖？输入 yes：")).trim() !== "yes"
-    )
-      throw new Jp5LoginError("AUTH_CANCELLED");
-    console.log("使用自研 JP-5 登录流程。未知状态停止，不自动重试。");
-    const result = await runJp5Login(
-      adapter,
-      prompt,
-      controller.signal,
+
+    browser = await chromium.launch({ headless: false });
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await page.goto("https://x.com/login", {
+      waitUntil: "domcontentloaded",
+      timeout: 60_000,
+    });
+    console.log(
+      "请在浏览器窗口中手动完成 X 登录及页面要求的验证。完成后进入 X 首页，再回到终端按 Enter。",
     );
-    if (controller.signal.aborted) throw new Jp5LoginError("AUTH_CANCELLED");
-    // Cookie-only storageState-compatible container, not a full browser state.
-    const state: AuthState = {
-      cookies: [
-        {
-          name: "auth_token",
-          value: result.authToken,
-          httpOnly: true,
-        },
-        { name: "ct0", value: result.csrfToken, httpOnly: false },
-      ].map((cookie) => ({
-        ...cookie,
-        domain: ".x.com",
-        path: "/",
-        expires: -1,
-        secure: true,
-        sameSite: "Lax" as const,
-      })),
-      origins: [],
-    };
-    await saveAuthState(statePath, state);
-    console.log("登录会话已保存至 playwright/.auth/x.json；未执行采集。");
+    await ask(
+      "登录完成后按 Enter 继续；取消请按 Ctrl+C：",
+      controller.signal,
+      cancel,
+    );
+    if (controller.signal.aborted) throw new AuthCliError("AUTH_CANCELLED");
+    if (!isXHome(page.url())) throw new AuthCliError("AUTH_LOGIN_PAGE_NOT_REACHED");
+
+    const state: AuthState = await context.storageState({ indexedDB: true });
+    if (!hasXAuthCookies(state)) throw new AuthStateError("AUTH_STATE_INVALID");
+    const username = accountLabel(
+      await ask(
+        "输入浏览器中当前登录账号的用户名（仅作会话标签，不含 @）：",
+        controller.signal,
+        cancel,
+      ),
+    );
+    const confirmation = await ask(
+      `确认将 @${username} 的加密浏览器会话保存到数据库？输入 yes：`,
+      controller.signal,
+      cancel,
+    );
+    if (confirmation.trim() !== "yes") {
+      throw new AuthCliError("AUTH_NOT_CONFIRMED");
+    }
+    if (controller.signal.aborted) throw new AuthCliError("AUTH_CANCELLED");
+
+    await saveXAuthState(db, state, username, encryptionKey);
+    console.log(
+      `@${username} 的浏览器会话已加密保存到 PostgreSQL；未保存 HAR、请求正文或密码。`,
+    );
   } finally {
     clearTimeout(timer);
     process.removeListener("SIGINT", cancel);
     process.removeListener("SIGTERM", cancel);
+    if (browser) await browser.close().catch(() => undefined);
+    await pool.end();
   }
 }
-main().catch((error) => {
-  console.error(
-    error instanceof Jp5LoginError
-      ? error.code === "AUTH_RUNTIME_UNAVAILABLE"
-        ? "AUTH_RUNTIME_UNAVAILABLE：自研编排已接管；缺少同会话运行时、POST 与身份/会话适配，未读取凭证或发起登录。"
-        : error.message
-      : "AUTH_FAILED：登录失败，原会话保留；原始异常及凭证未输出。",
-  );
+
+main().catch((error: unknown) => {
+  if (error instanceof AuthCliError || error instanceof AuthStateError) {
+    console.error(error.code);
+  } else {
+    console.error(
+      "AUTH_FAILED：会话未保存或旧会话未覆盖。原始异常、Cookie 和认证参数未输出；请检查数据库迁移及浏览器安装。",
+    );
+  }
   process.exitCode = 1;
 });

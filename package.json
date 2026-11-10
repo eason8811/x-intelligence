@@ -6,7 +6,6 @@
     "node": ">=22.14.0"
   },
   "scripts": {
-    "x:auth:offline": "pnpm --filter @x-intelligence/collector exec tsx ../../tools/offline/login-demo.ts",
     "dev": "turbo run dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
@@ -14,8 +13,7 @@
     "db:generate": "pnpm --filter @x-intelligence/db db:generate",
     "db:check": "pnpm --filter @x-intelligence/db db:check",
     "db:migrate": "pnpm --filter @x-intelligence/db db:migrate",
-    "x:auth": "pnpm --filter @x-intelligence/collector x:auth",
-    "x:auth:test": "pnpm --filter @x-intelligence/collector x:auth:test"
+    "x:auth": "pnpm --filter @x-intelligence/collector x:auth"
   },
   "devDependencies": {
     "@babel/generator": "^8.0.6",

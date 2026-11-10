@@ -12,7 +12,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@x-intelligence/shared": "workspace:*",
-    "tough-cookie": "6.0.2"
+    "@x-intelligence/shared": "workspace:*"
   }
 }

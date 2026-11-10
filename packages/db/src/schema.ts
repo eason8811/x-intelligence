@@ -111,3 +111,16 @@ export const postClassification = pgTable(
     ),
   ],
 );
+
+// The browser session contains account credentials. Only AES-GCM ciphertext,
+// nonce and authentication tag are stored in PostgreSQL.
+export const xAuthSession = pgTable("x_auth_session", {
+  accountKey: text("account_key").primaryKey(),
+  username: text("username").notNull(),
+  encryptionVersion: integer("encryption_version").notNull(),
+  nonce: text("nonce").notNull(),
+  ciphertext: text("ciphertext").notNull(),
+  authTag: text("auth_tag").notNull(),
+  createdAt: time("created_at").notNull().defaultNow(),
+  updatedAt: time("updated_at").notNull().defaultNow(),
+});

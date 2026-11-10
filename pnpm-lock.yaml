@@ -208,18 +208,24 @@ importers:
       '@x-intelligence/classifier':
         specifier: workspace:*
         version: link:../../packages/classifier
+      '@x-intelligence/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@x-intelligence/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@x-intelligence/x':
         specifier: workspace:*
         version: link:../../packages/x
+      dotenv:
+        specifier: 18.0.5
+        version: 18.0.5
       next:
         specifier: 16.3.8
         version: 16.3.8(@babel/core@7.29.7(supports-color@7.2.0))(@types/node@24.19.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
-      playwright:
-        specifier: 1.63.0
-        version: 1.63.0
+      patchright:
+        specifier: 1.64.3
+        version: 1.64.3
       react:
         specifier: 19.3.0
         version: 19.3.0
@@ -327,9 +333,6 @@ importers:
       '@x-intelligence/shared':
         specifier: workspace:*
         version: link:../shared
-      tough-cookie:
-        specifier: 6.0.2
-        version: 6.0.2
 
 packages:
 
@@ -4699,6 +4702,16 @@ packages:
     resolution: {integrity: sha512-CiyeOxFT/JZyN5m0z9PfXw4SCBJ6Sygz1Dpl0wqjlhDEGGBP1GnsUVEL0p63hoG1fcj3fHynXi9NYO4nWOL+qQ==}
     engines: {node: '>= 0.8'}
 
+  patchright-core@1.64.3:
+    resolution: {integrity: sha512-AikBjQ6CcsEtk7pJGlZ7ITxIInVd0a8HWPtuGjx2Y0Ogb88sj1wqICiYFz4du6fbaLQStLNEnWCmYm5uODsEzQ==}
+    engines: {node: '>=20'}
+    hasBin: true
+
+  patchright@1.64.3:
+    resolution: {integrity: sha512-DjdhKOHRMW2RcvCJJ4MW9B4Mn7dh4Tu5IAkeiYgmoMfVdG6w2klfNdw0Ci8F/jibp870EIfJhzyN14GN6jDVPg==}
+    engines: {node: '>=20'}
+    hasBin: true
+
   path-browserify@1.0.1:
     resolution: {integrity: sha512-b7uo2UCUOYZcnF/3ID0lulOJi/bafxa1xPe7ZPsammBSpjSWQkjNxlt635YGS2MiR9GjvuXCtz2emr3jbsz98g==}
 
@@ -4788,16 +4801,6 @@ packages:
   pkg-up@3.1.0:
     resolution: {integrity: sha512-nDywThFk1i4BQK4twPQ6TA4RT8bDY96yeuCVBWL3ePARCiEKDRSrNGbFIgUJpLp+XeIR65v8ra7WuJOFUBtkMA==}
     engines: {node: '>=8'}
-
-  playwright-core@1.63.0:
-    resolution: {integrity: sha512-rYCsBF/M5HjUch52bbtVONEFjv6Xu8sm8h72dNlR5bzIE1fvC/bxgspzkjSfU+MweEMmPM8KJebG6nnyxo5mCg==}
-    engines: {node: '>=20'}
-    hasBin: true
-
-  playwright@1.63.0:
-    resolution: {integrity: sha512-+7ziBLidS4NaNCdt57SUDT+wYmmd5fmiQejUic/kb+YsYSCPyOOE9sebzMjNmQrsnNpDJqd4WHvV/8lfKfUDUg==}
-    engines: {node: '>=20'}
-    hasBin: true
 
   possible-typed-array-names@1.1.0:
     resolution: {integrity: sha512-/+5VFTchJDoVj3bhoqi6UeymcD00DAwb1nJwamzPvHEszJ4FpF6SNNbUbOS8yI56qHzdV8eK0qEfOSiodkTdxg==}
@@ -10279,6 +10282,12 @@ snapshots:
 
   parseurl@1.3.3: {}
 
+  patchright-core@1.64.3: {}
+
+  patchright@1.64.3:
+    dependencies:
+      patchright-core: 1.64.3
+
   path-browserify@1.0.1: {}
 
   path-exists@3.0.0: {}
@@ -10347,12 +10356,6 @@ snapshots:
   pkg-up@3.1.0:
     dependencies:
       find-up: 3.0.0
-
-  playwright-core@1.63.0: {}
-
-  playwright@1.63.0:
-    dependencies:
-      playwright-core: 1.63.0
 
   possible-typed-array-names@1.1.0: {}
 

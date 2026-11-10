@@ -8,15 +8,16 @@
     "start": "next start --port 3001",
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit",
-    "x:auth": "tsx src/auth/login.ts",
-    "x:auth:test": "tsx --test src/auth/*.test.ts ../../packages/x/src/jp5/*.test.ts"
+    "x:auth": "tsx src/auth/login.ts"
   },
   "dependencies": {
     "@x-intelligence/classifier": "workspace:*",
+    "@x-intelligence/db": "workspace:*",
     "@x-intelligence/shared": "workspace:*",
     "@x-intelligence/x": "workspace:*",
+    "dotenv": "18.0.5",
     "next": "16.3.8",
-    "playwright": "1.63.0",
+    "patchright": "1.64.3",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },

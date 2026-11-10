@@ -10,7 +10,7 @@
 
 ## 当前范围
 
-当前仅完成仓库准备；正式实现首先推进交接文档 Phase 1：可运行的 Monorepo Skeleton。
+当前授权任务：将现有自研 JP-5 登录入口替换为本地可见的 Patchright Chromium 人工登录，并把登录后的浏览器会话以 AES-GCM 加密形式保存到 PostgreSQL。不得将登录密码、验证码或未加密会话状态写入日志或数据库。
 
 - 使用 pnpm、Turborepo、TypeScript strict。
 - 保持 `apps/web`、`apps/collector` 和四个共享 package 的边界，不继续拆分 package。
@@ -27,8 +27,8 @@
 - Post 插入幂等，数据库时间统一 UTC，页面按用户时区展示。
 - 分类记录保存实际 classifier 和版本；业务层通过分类接口隔离第三方 SDK。
 - 不吞异常，不大量使用 any；新增依赖前说明用途。
-- 不引入 stealth、指纹伪装、验证码或反 Bot 绕过逻辑。
-- storageState 视为账号凭证，不提交 Git、不公开发布、不明文存数据库。
+- Patchright 仅按本次用户明确要求用于本地人工登录；这是针对登录入口的窄范围例外，不扩展为代理轮换、验证码绕过、额外指纹伪装或采集链路的反 Bot 绕过。
+- storageState 视为账号凭证，不提交 Git、不公开发布、不明文存数据库；写入 PostgreSQL 前必须用环境密钥做应用层 AES-GCM 加密。
 - Secret 不使用 NEXT_PUBLIC_；Cron 接口验证 CRON_SECRET。
 - 不引入文档排除的消息队列、微服务、向量数据库或额外 AI 能力。
 
@@ -50,3 +50,7 @@
 ## 终端登录方案修订（2026-10-10）
 
 用户明确要求将原有 Playwright 人工登录替换为 twitter-monitor Web HTTP 登录。CLI 交互输入用户名、隐藏密码和验证码，按上游任务推进；验证 Viewer 与账号确认后保存私有 cookie 会话。保留原始 HTTP/TLS 配置，不新增规避代码；未知挑战停止。原“Playwright 保留人工登录”的决定由此修订。真实登录与采集可用性仍需授权账号验证。
+
+## Patchright 人工登录与数据库加密存储修订（2026-11-10）
+
+用户明确要求推翻 JP-5 HTTP 编排，改用 Patchright 打开可见 Chromium，由用户手动完成登录。会话从同一浏览器上下文获取，校验 x.com 首页以及 auth_token/ct0 后，以 AES-256-GCM 加密完整 storageState，再写入 `x_auth_session`；加密密钥仅来自本地/部署环境变量 `X_AUTH_ENCRYPTION_KEY`。登录密码和验证码不经 CLI 收集，不保存 HAR、请求正文或请求头快照。Patchright 的自动化检测补丁仅用于此人工登录入口，其他反 Bot 绕过仍禁止。当前配置的 `DATABASE_URL` 已成功应用新增 migration；真实 X 登录与会话复用仍待授权账号验证。
