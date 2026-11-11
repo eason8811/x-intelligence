@@ -1999,4 +1999,12 @@ Jev
 
 本修订取代 JP-5 CLI 登录运行时。`pnpm x:auth` 通过 Patchright 的 `channel: "chrome"` 启动本机已安装的 Google Chrome Stable，并使用隔离的临时浏览器上下文；用户在窗口中手动完成 X 登录。程序验证首页及 `auth_token`、`ct0`，将 `storageState({ indexedDB: true })` 以 AES-256-GCM 加密后保存到新增的 `x_auth_session` 表。密钥来自 `X_AUTH_ENCRYPTION_KEY`，不进入数据库。操作者确认账号名作为会话标签，代码尚不声称完成远端身份 API 校验。
 
-会话状态包含实际存在的 Cookie、localStorage 和 IndexedDB。程序不保存 HAR、登录正文、请求头、密码或验证码；请求级 Castle、Prelude、transaction 字段不从历史采集回放，由当前浏览器流程产生。现有 JP-5 源码和离线演示入口已删除，研究文档保留为历史证据。新增 migration 已成功应用到当前 `DATABASE_URL` 指向的 PostgreSQL；真实授权账号登录和会话复用仍待单独验收。Patchright 仅是本次登录入口的授权例外，不扩展为额外反 Bot 绕过。
+会话状态包含实际存在的 Cookie、localStorage 和 IndexedDB。程序不保存 HAR、登录正文、请求头、密码或验证码；请求级 Castle、Prelude、transaction 字段不从历史采集回放，由当前浏览器流程产生。现有 JP-5 源码和离线演示入口已删除，研究文档保留为历史证据。新增 migration 已成功应用到当前 `DATABASE_URL` 指向的 PostgreSQL；用户随后回报本机登录命令已完成并保存会话，账号身份确认与跨进程复用仍待单独验收。Patchright 仅是本次登录入口的授权例外，不扩展为额外反 Bot 绕过。
+
+## 数据库会话复用检查（2026-11-11）
+
+用户回报本机 `pnpm x:auth` 已完成可见人工登录，并输出加密会话保存成功。该结果说明命令报告数据库写入成功，但不单独证明账号远端身份，也没有验证新进程能否解密并重新使用会话。
+
+新增 `pnpm x:auth:verify`：从 PostgreSQL 读取并解密会话，注入新的隔离 Chrome 上下文并打开 X 首页，由用户目视核对账号；不写数据库、不落明文文件。此命令的真实 Windows/Chrome/数据库执行结果待用户回报。
+
+按 Phase 2 已授权方案，恢复固定上游 commit `dd8de94e3e2853beb7b5e5b785f1908c2cafea4b` 的 twitter-monitor For You 核心，并新增 `pnpm x:collect:probe`。它从同一数据库解密会话，在内存提取 `auth_token`、`ct0`，默认请求 5 条、1 页；结果只写入 Git 忽略的本机调试目录，不写业务数据库、不调用 Jev。需先由用户在 Windows 运行会话复用核验，再执行真实 X 探测。推荐顺序、字段、分页和当前 queryId/features 仍待授权账号验证；`orderVerified` 保持 `false`。

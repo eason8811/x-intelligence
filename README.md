@@ -56,7 +56,7 @@ pnpm db:migrate
 
 真实密钥和浏览器登录态不提交 Git；使用服务端环境变量，不加 NEXT_PUBLIC_ 前缀。当前 X storageState 在写入 PostgreSQL 前用 `X_AUTH_ENCRYPTION_KEY` 进行 AES-256-GCM 加密。
 
-旧 twitter-monitor 登录/采集适配、For You 探针及自研 JP-5 登录运行时均已移除。现行登录入口是本地 Patchright 人工登录；本次 Patchright 用法限于该授权入口，不扩展为其他反 Bot 绕过。四个共享包、数据库和 Web 边界保持不变。
+旧 twitter-monitor 登录适配和生产采集入口已移除。Phase 2 的本地只读 For You 探针使用固定版本的 twitter-monitor 核心，不写业务数据库、不调用 Jev；请求结果仅保存在本机私有调试目录，推荐顺序仍需人工对照验证。现行登录入口是本地 Patchright 人工登录；Patchright 用法限于该授权入口，不扩展为其他反 Bot 绕过。四个共享包、数据库和 Web 边界保持不变。
 
 ## X 人工登录
 
@@ -66,4 +66,18 @@ pnpm x:auth
 
 命令通过 Patchright 打开本机已安装的 Google Chrome Stable，用户在窗口中手动完成登录。Chrome 使用独立的临时上下文，不会读取日常 Chrome 个人资料。成功到达 X 首页并确认当前账号后，程序将完整 storageState 加密写入 `x_auth_session`；密码、验证码、HAR、请求正文和请求头不会被记录。旧会话只有在新登录成功并确认后才会覆盖。
 
-运行前需设置 `DATABASE_URL` 和 32 字节 Base64 编码的 `X_AUTH_ENCRYPTION_KEY`。`x_auth_session` migration 已成功应用到当前 `DATABASE_URL` 指向的数据库；其他数据库环境需先审阅并应用 migration。步骤见 [登录工具](docs/manual-login.md)。当前没有运行真实 X 登录。
+运行前需设置 `DATABASE_URL` 和 32 字节 Base64 编码的 `X_AUTH_ENCRYPTION_KEY`。`x_auth_session` migration 已成功应用到当时配置的数据库；其他数据库环境需先审阅并应用 migration。用户回报本机 Windows `pnpm x:auth` 已成功完成手动登录并保存加密会话；账号身份尚未独立校验，跨进程复用需运行下面的核验命令。步骤见 [登录工具](docs/manual-login.md)。
+
+验证数据库会话能否在新进程中解密和复用：
+
+```bash
+pnpm x:auth:verify
+```
+
+通过后才进行小规模 For You 探测：
+
+```bash
+pnpm x:collect:probe --count 5 --pages 1
+```
+
+探测结果含账号可见帖子内容，只写入本机 `debug-artifacts/x-probe/`，不提交、不公开；详见 [For You 探测](docs/for-you-probe.md)。这项本地探测不代表采集排序、分页或长期稳定性已验收。

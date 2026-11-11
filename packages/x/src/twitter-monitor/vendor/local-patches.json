@@ -1,0 +1,7 @@
+{
+  "libs/assets/graphql/graphqlQueryIdList.js": {
+    "originalBytes": 530994,
+    "sha256": "54851d6381078517069dfd8c5976e0a27752819bc11ab728c50ea8091a787dc8",
+    "reason": "Allow core module loading despite two missing unused community operation exports; no fake query IDs."
+  }
+}

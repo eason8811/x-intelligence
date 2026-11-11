@@ -13,7 +13,9 @@
     "db:generate": "pnpm --filter @x-intelligence/db db:generate",
     "db:check": "pnpm --filter @x-intelligence/db db:check",
     "db:migrate": "pnpm --filter @x-intelligence/db db:migrate",
-    "x:auth": "pnpm --filter @x-intelligence/collector x:auth"
+    "x:auth": "pnpm --filter @x-intelligence/collector x:auth",
+    "x:auth:verify": "pnpm --filter @x-intelligence/collector x:auth:verify",
+    "x:collect:probe": "pnpm --filter @x-intelligence/collector x:collect:probe"
   },
   "devDependencies": {
     "@babel/generator": "^8.0.6",

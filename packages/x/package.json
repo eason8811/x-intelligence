@@ -12,6 +12,14 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@x-intelligence/shared": "workspace:*"
+    "@x-intelligence/shared": "workspace:*",
+    "axios-helper": "file:src/twitter-monitor/vendor/upstream/packages/axios-helper",
+    "crypto-helper": "file:src/twitter-monitor/vendor/upstream/packages/crypto-helper",
+    "get-mime": "file:src/twitter-monitor/vendor/upstream/packages/get-mime",
+    "axios": "1.18.1",
+    "hpagent": "1.2.0",
+    "acorn": "8.17.0",
+    "lodash-es": "4.18.1",
+    "jsdom": "29.1.1"
   }
 }

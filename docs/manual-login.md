@@ -10,11 +10,15 @@
 
 登录最多等待 15 分钟。未知页面、没有必需 Cookie、数据库错误或浏览器错误都会停止；程序不会自动重试，也不会输出 Cookie、请求头或原始异常。
 
+## 验证保存的会话
+
+运行 `pnpm x:auth:verify`。命令从 PostgreSQL 读取并解密会话，将其直接注入新的隔离 Chrome 上下文，然后打开 X 首页。请在浏览器中核对显示的账号，并在终端输入 `yes`。命令只验证跨进程读取、解密和浏览器上下文复用，不修改数据库、不写出明文会话文件；数据库中的用户名仍只是保存时输入的标签，账号核对由操作者在 X 页面完成。
+
 ## 数据库保存内容
 
 Patchright 的 `BrowserContext.storageState({ indexedDB: true })` 作为整体会话保存，包含当前浏览器上下文中的 Cookie、localStorage，以及浏览器支持时的 IndexedDB。X 返回的 `auth_token`、`ct0`、`twid`、`gt`、`guest_id` 等 Cookie 会按本次登录实际存在情况记录；当前实现只把有效的 `auth_token` 和 `ct0` 作为保存门槛，不硬编码其他 Cookie 必须存在。
 
-会话以 AES-256-GCM 加密后存入 PostgreSQL 的 `x_auth_session` 表。数据库保留会话标签、加密版本、nonce、ciphertext、authentication tag 和时间字段；密钥来自 `X_AUTH_ENCRYPTION_KEY`，必须是 32 字节随机数的 Base64 编码，不能存入数据库、Git 或公开配置。`loadXAuthState` 提供解密入口，后续 Collector 可将结果传给 `browser.newContext({ storageState })` 复用。
+会话以 AES-256-GCM 加密后存入 PostgreSQL 的 `x_auth_session` 表。数据库保留会话标签、加密版本、nonce、ciphertext、authentication tag 和时间字段；密钥来自 `X_AUTH_ENCRYPTION_KEY`，必须是 32 字节随机数的 Base64 编码，不能存入数据库、Git 或公开配置。`loadXAuthState` 提供解密入口，`pnpm x:auth:verify` 用它验证从数据库读取后能否传给 `browser.newContext({ storageState })` 复用。
 
 实现不会录制或保存 HAR、登录请求正文、密码、验证码或完整请求头。历史采集中观察到的 `x-client-transaction-id`、`$castle_token`、`prelude_dispatch_id` 属于请求或流程上下文，不是稳定账号会话；正常浏览器会在需要时按当前页面流程产生它们，不应从历史值回放。公共应用 `Authorization` 配置也不属于账号 Cookie，不写入账号会话。
 
