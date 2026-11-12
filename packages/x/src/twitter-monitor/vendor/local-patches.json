@@ -1,7 +1,13 @@
 {
   "libs/assets/graphql/graphqlQueryIdList.js": {
     "originalBytes": 530994,
-    "sha256": "54851d6381078517069dfd8c5976e0a27752819bc11ab728c50ea8091a787dc8",
-    "reason": "Allow core module loading despite two missing unused community operation exports; no fake query IDs."
+    "upstreamSha256": "fefa167e06bda38afcc1cf13ff910f44daec841909db6d52d5ea31b87affa542",
+    "sha256": "d4714c509b8afb8e4b737cb330da041955b0a18be91f0ed2128c4b600b497426",
+    "reason": "Keep two missing unused community operation exports undefined, and align HomeTimeline queryId/features with the user-provided current first-page request; no dynamic request values copied."
+  },
+  "libs/core/Core.fetch.mjs": {
+    "upstreamSha256": "54709f5ff769f5a7200439636d129e7de4f41545114a095798bb049992908748",
+    "sha256": "3a1705a7ab90122048bbb0b62030c788296503662fae247f95506109a3aff212",
+    "reason": "Use the observed x.com HomeTimeline endpoint, omit latestControlAvailable for HomeTimeline, and include fieldToggles.withPayments=false; retain HomeLatest behavior and upstream HTTP/TLS handling."
   }
 }

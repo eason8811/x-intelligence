@@ -69,22 +69,31 @@ function credentialsFromState(state: AuthState): XCredentials {
   if (!hasXAuthCookies(state)) {
     throw new ProbeCliError("AUTH_STATE_INVALID");
   }
-  const authToken = state.cookies.find((cookie) => cookie.name === "auth_token");
-  const csrfToken = state.cookies.find((cookie) => cookie.name === "ct0");
-  if (
-    typeof authToken?.value !== "string" ||
-    typeof csrfToken?.value !== "string"
-  ) {
-    throw new ProbeCliError("AUTH_STATE_INVALID");
-  }
-  return { authToken: authToken.value, csrfToken: csrfToken.value };
+  const readCookie = (name: "auth_token" | "ct0"): string => {
+    const now = Date.now();
+    const matches = state.cookies.filter((cookie) =>
+      cookie.name === name &&
+      (cookie.domain === "x.com" || cookie.domain === ".x.com") &&
+      cookie.path === "/" &&
+      cookie.secure &&
+      (cookie.expires === -1 || cookie.expires * 1000 > now)
+    );
+    if (matches.length !== 1 || !matches[0].value) {
+      throw new ProbeCliError("AUTH_STATE_INVALID");
+    }
+    return matches[0].value;
+  };
+  return {
+    authToken: readCookie("auth_token"),
+    csrfToken: readCookie("ct0"),
+  };
 }
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   if (args.includes("--help")) {
     console.log(
-      "pnpm x:collect:probe [--count 5] [--pages 1]\n读取 PostgreSQL 中加密会话，仅在内存中使用 auth_token/ct0，通过固定 twitter-monitor 核心请求授权 For You。count=1..20，pages=1..3；不重试、不写业务数据库、不调用 Jev。结果写入被 Git 忽略的 debug-artifacts/x-probe/，包含帖子内容，请按私有数据保管。推荐顺序保持未验证。",
+      "pnpm x:collect:probe [--count 5] [--pages 1]\n读取 PostgreSQL 中加密会话，仅在内存中使用 auth_token/ct0，通过固定 twitter-monitor 核心请求授权 For You。count=1..20，pages=1..3；与当前网页首屏请求对照时可传 --count 20。不重试、不写业务数据库、不调用 Jev。结果写入被 Git 忽略的 debug-artifacts/x-probe/，包含帖子内容，请按私有数据保管。推荐顺序保持未验证。",
     );
     return;
   }

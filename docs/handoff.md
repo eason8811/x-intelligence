@@ -2007,4 +2007,10 @@ Jev
 
 新增 `pnpm x:auth:verify`：从 PostgreSQL 读取并解密会话，注入新的隔离 Chrome 上下文并打开 X 首页，由用户目视核对账号；不写数据库、不落明文文件。此命令的真实 Windows/Chrome/数据库执行结果待用户回报。
 
-按 Phase 2 已授权方案，恢复固定上游 commit `dd8de94e3e2853beb7b5e5b785f1908c2cafea4b` 的 twitter-monitor For You 核心，并新增 `pnpm x:collect:probe`。它从同一数据库解密会话，在内存提取 `auth_token`、`ct0`，默认请求 5 条、1 页；结果只写入 Git 忽略的本机调试目录，不写业务数据库、不调用 Jev。需先由用户在 Windows 运行会话复用核验，再执行真实 X 探测。推荐顺序、字段、分页和当前 queryId/features 仍待授权账号验证；`orderVerified` 保持 `false`。
+按 Phase 2 已授权方案，恢复固定上游 commit `dd8de94e3e2853beb7b5e5b785f1908c2cafea4b` 的 twitter-monitor For You 核心，并新增 `pnpm x:collect:probe`。它从同一数据库解密会话，在内存提取 `auth_token`、`ct0`，默认请求 5 条、1 页；结果只写入 Git 忽略的本机调试目录，不写业务数据库、不调用 Jev。会话复用已由用户在 Windows 上通过浏览器目视核对；首次 HTTP 探测能解析真实帖子，但与网页列表未发现交集，推荐顺序尚未验收；`orderVerified` 保持 `false`。
+
+## 当前网页 HomeTimeline 请求对齐（2026-11-11）
+
+用户提供了当前 X 网页首屏 HomeTimeline 请求。它使用 `x.com/i/api/graphql`、queryId `KmJCeZ__ef1fNos7tKN_fg`、count 20、requestContext `launch`、`withCommunity=true`、`includePromotedContent=true`、3 个动态 `seenTweetIds`、`fieldToggles.withPayments=false` 和 42 个 feature flags。它与固定上游的 host/path、queryId、feature map 及部分变量不一致。探测适配器已按该首屏样本更新 path/queryId/features/field toggle，并省略过时的 `latestControlAvailable`。
+
+不复制请求中的 Cookie、Authorization、CSRF 或动态 transaction ID；动态 `seenTweetIds` 也不硬编码，探测仍发送空列表。会话 Cookie 提取现在限定为通过验证的 `x.com`/`.x.com` 域。真实 Windows 请求复测及与当前 For You 页面交集/顺序比较仍待用户执行。用户提供的原始 curl 含认证材料，建议在 X 中终止该会话并重新运行 `pnpm x:auth` 后再测试。

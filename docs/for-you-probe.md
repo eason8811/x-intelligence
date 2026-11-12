@@ -4,14 +4,14 @@
 
 先运行 `pnpm x:auth:verify`，在新打开的 Chrome 中确认展示的是目标 X 账号。探测命令随后从 `DATABASE_URL` 对应的 PostgreSQL 读取并解密同一条 `x-primary` 会话；`DATABASE_URL` 与 `X_AUTH_ENCRYPTION_KEY` 必须和保存登录态时一致。
 
-探测只在内存中提取 `auth_token` 和 `ct0`，调用固定上游 `BANKA2017/twitter-monitor` commit `dd8de94e3e2853beb7b5e5b785f1908c2cafea4b` 的 `postHomeTimeLine`。原始 HTTP/TLS 行为与必要的本地兼容补丁见 [`PROVENANCE.md`](../packages/x/src/twitter-monitor/vendor/PROVENANCE.md)。探测不写 `x_post`、`feed_run` 或其他业务表，不调用 Jev，不启动 Cron，不自动重试。
+探测只在内存中提取 `auth_token` 和 `ct0`，调用固定上游 `BANKA2017/twitter-monitor` commit `dd8de94e3e2853beb7b5e5b785f1908c2cafea4b` 的 `postHomeTimeLine`。HomeTimeline 的路径、queryId、features 和 `fieldToggles` 已按 2026-11-11 用户提供的首屏请求做本地适配；不保存或复放 Cookie、Authorization、CSRF、transaction ID 或该次请求中的 `seenTweetIds`。原始 HTTP/TLS 行为与必要的本地兼容补丁见 [`PROVENANCE.md`](../packages/x/src/twitter-monitor/vendor/PROVENANCE.md)。探测不写 `x_post`、`feed_run` 或其他业务表，不调用 Jev，不启动 Cron，不自动重试。
 
 ## 执行
 
-默认只请求一页：
+默认只请求一页。若要与所记录的网页首屏请求对照，显式传 `count=20`：
 
 ```bash
-pnpm x:collect:probe --count 5 --pages 1
+pnpm x:collect:probe --count 20 --pages 1
 ```
 
 参数范围为 `count=1..20`、`pages=1..3`。`count` 是传给上游的请求值，实际返回条数由 X 决定。建议先审阅这一页，再决定是否请求最多三页观察游标与跨页去重。

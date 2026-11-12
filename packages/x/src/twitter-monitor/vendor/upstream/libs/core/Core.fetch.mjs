@@ -60,6 +60,7 @@ const TW_AUTHORIZATION = TW_AUTHORIZATION2// old token was expired
 const TWEETDECK_AUTHORIZATION2 = 'Bearer AAAAAAAAAAAAAAAAAAAAAFQODgEAAAAAVHTp76lzh3rFzcHbmHVvQxYYpTw%3DckAlMINMjmCwxUcaXbAN4XqJVdgMJaHqNOFgPMK0zN1qLqLQCF' //new tweetdeck
 
 const TW_WEBAPI_PREFIX = 'https://api.x.com'
+const TW_HOME_TIMELINE_PREFIX = 'https://x.com/i/api/graphql'
 const TW_ANDROID_PREFIX = 'https://global.albtls.t.co'
 const TW_ANDROID_SEARCH_PREFIX = 'https://na.albtls.t.co'
 
@@ -1892,9 +1893,11 @@ const postHomeTimeLine = async (ctx = { cookie: {}, count: 20, cursor: '', isFor
     let graphqlVariables = {
         count,
         includePromotedContent: true,
-        latestControlAvailable: true,
         requestContext: 'launch',
         seenTweetIds: []
+    }
+    if (!isForYou) {
+        graphqlVariables.latestControlAvailable = true
     }
     if (cursor) {
         //graphqlVariables.requestContext = 'ptr'
@@ -1904,8 +1907,11 @@ const postHomeTimeLine = async (ctx = { cookie: {}, count: 20, cursor: '', isFor
     if (isForYou) {
         graphqlVariables.withCommunity = true
     }
+    const timelineUrl = isForYou
+        ? `${TW_HOME_TIMELINE_PREFIX}/${_HomeTimeline.queryId}/HomeTimeline`
+        : `${TW_WEBAPI_PREFIX}/graphql/${_HomeLatestTimeline.queryId}/HomeLatestTimeline`
     return coreFetch(
-        TW_WEBAPI_PREFIX + '/graphql/' + (isForYou ? _HomeTimeline.queryId + '/HomeTimeline' : _HomeLatestTimeline.queryId + '/HomeLatestTimeline'),
+        timelineUrl,
         {},
         cookie,
         1,
@@ -1913,6 +1919,7 @@ const postHomeTimeLine = async (ctx = { cookie: {}, count: 20, cursor: '', isFor
         JSON.stringify({
             variables: graphqlVariables,
             features: isForYou ? _HomeTimeline.features : _HomeLatestTimeline.features,
+            ...(isForYou ? { fieldToggles: { withPayments: false } } : {}),
             queryId: isForYou ? _HomeTimeline.queryId : _HomeLatestTimeline.queryId
         })
     )
