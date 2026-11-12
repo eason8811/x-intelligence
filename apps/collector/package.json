@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "x:auth": "tsx src/auth/login.ts",
     "x:auth:verify": "tsx src/auth/verify.ts",
-    "x:collect:probe": "tsx src/jobs/probe-cli.ts"
+    "x:collect:probe": "tsx src/jobs/probe-cli.ts",
+    "x:collect:run": "tsx src/jobs/collect-cli.ts"
   },
   "dependencies": {
     "@x-intelligence/classifier": "workspace:*",

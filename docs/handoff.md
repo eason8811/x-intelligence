@@ -2013,4 +2013,10 @@ Jev
 
 用户提供了当前 X 网页首屏 HomeTimeline 请求。它使用 `x.com/i/api/graphql`、queryId `KmJCeZ__ef1fNos7tKN_fg`、count 20、requestContext `launch`、`withCommunity=true`、`includePromotedContent=true`、3 个动态 `seenTweetIds`、`fieldToggles.withPayments=false` 和 42 个 feature flags。它与固定上游的 host/path、queryId、feature map 及部分变量不一致。探测适配器已按该首屏样本更新 path/queryId/features/field toggle，并省略过时的 `latestControlAvailable`。
 
-不复制请求中的 Cookie、Authorization、CSRF 或动态 transaction ID；动态 `seenTweetIds` 也不硬编码，探测仍发送空列表。会话 Cookie 提取现在限定为通过验证的 `x.com`/`.x.com` 域。真实 Windows 请求复测及与当前 For You 页面交集/顺序比较仍待用户执行。用户提供的原始 curl 含认证材料，建议在 X 中终止该会话并重新运行 `pnpm x:auth` 后再测试。
+不复制请求中的 Cookie、Authorization、CSRF 或动态 transaction ID；动态 `seenTweetIds` 也不硬编码，探测仍发送空列表。会话 Cookie 提取现在限定为通过验证的 `x.com`/`.x.com` 域。用户随后提供的 count=20 首屏探测结果含 35 条唯一且字段完整的帖子；浏览器响应也含 35 个帖子结果节点。两份数据不据此宣称 ID 或顺序一致。用户决定不再以逐条匹配为门槛；`orderVerified` 仍保持 `false`。此前提供的原始 curl 含认证材料，建议在 X 中终止该会话并重新运行 `pnpm x:auth` 后再测试。
+
+## 手动持久化采集命令（2026-11-12）
+
+新增 `pnpm x:collect:run`，与只写本地调试文件的 `x:collect:probe` 分离。该命令先创建 `RUNNING` 的 `feed_run`，调用相同 For You source，然后在一个事务中幂等 upsert `x_post`、记录 `feed_observation` 顺序、为尚无记录的帖子创建 `PENDING` 分类状态，并完成 `feed_run`。采集失败时尝试用安全错误码将 run 标记为 `FAILED`；不把 Cookie、请求正文、帖子正文或原始异常写入错误信息。
+
+无需新增 schema 或 migration。命令默认请求 `count=20`、`pages=1`；`target_count=count×pages`，`scroll_count` 为首屏后的续页数。当前仅完成实现和静态检查；真实 Windows/授权 PostgreSQL 写入、读回与重复采集幂等性仍待用户运行验证。Jev、Cron 和 Web 数据读取仍未接入。

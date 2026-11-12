@@ -16,8 +16,18 @@ pnpm x:collect:probe --count 20 --pages 1
 
 参数范围为 `count=1..20`、`pages=1..3`。`count` 是传给上游的请求值，实际返回条数由 X 决定。建议先审阅这一页，再决定是否请求最多三页观察游标与跨页去重。
 
+## 手动持久化采集
+
+探测结果确认可用后，可通过独立命令创建一次数据库采集运行。它使用同一加密会话和采集源，将帖子幂等写入 `x_post`，按本次顺序写入 `feed_observation`，创建尚无分类记录的 `PENDING` 项，并更新 `feed_run` 成功/失败状态。一次运行先记录为 `RUNNING`；帖子、观察记录、分类占位和成功状态在同一数据库事务中提交。失败时只把安全错误码写入运行记录。
+
+```bash
+pnpm x:collect:run --count 20 --pages 1
+```
+
+默认参数为 `count=20`、`pages=1`；`target_count` 记录 `count × pages`，`scroll_count` 记录首屏之后的续页数。X 返回条数可能高于 `count`。此命令只执行一次手动采集，不调用 Jev、不启动 Cron；`x:collect:probe` 仍保持只写本地调试文件、不写业务数据库。
+
 ## 结果与验证边界
 
 结果写入 Git 忽略的 `debug-artifacts/x-probe/<uuid>.json`。文件包含帖子内容、作者、时间、媒体 URL、分页游标和 `entryId` / `sortIndex` 证据，不包含 Cookie；它仍属于账号可见数据，应留在本机私有目录，不提交或公开。
 
-输出里的 `position` 和上游 `entryId` / `sortIndex` 只记录本次 HTTP 响应顺序，`orderVerified` 固定为 `false`。请在相近时间人工对照同账号的 X For You 首页，核对帖子、字段和顺序。一次成功响应只证明本次请求可用，不能证明稳定分页或长期有效；离线检查也不能替代这次真实账号探测。
+输出里的 `position` 和上游 `entryId` / `sortIndex` 只记录本次 HTTP 响应顺序，`orderVerified` 固定为 `false`。用户已决定不把与网页当前列表逐条一致作为继续推进的门槛。一次成功响应证明本次请求和解析可用，不证明排序与网页完全等价、稳定分页或长期有效；离线检查也不能替代真实账号探测。
