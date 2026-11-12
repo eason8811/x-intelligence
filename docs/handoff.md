@@ -2019,4 +2019,14 @@ Jev
 
 新增 `pnpm x:collect:run`，与只写本地调试文件的 `x:collect:probe` 分离。该命令先创建 `RUNNING` 的 `feed_run`，调用相同 For You source，然后在一个事务中幂等 upsert `x_post`、记录 `feed_observation` 顺序、为尚无记录的帖子创建 `PENDING` 分类状态，并完成 `feed_run`。采集失败时尝试用安全错误码将 run 标记为 `FAILED`；不把 Cookie、请求正文、帖子正文或原始异常写入错误信息。
 
-无需新增 schema 或 migration。命令默认请求 `count=20`、`pages=1`；`target_count=count×pages`，`scroll_count` 为首屏后的续页数。当前仅完成实现和静态检查；真实 Windows/授权 PostgreSQL 写入、读回与重复采集幂等性仍待用户运行验证。Jev、Cron 和 Web 数据读取仍未接入。
+无需新增 schema 或 migration。命令默认请求 `count=20`、`pages=1`；`target_count=count×pages`，`scroll_count` 为首屏后的续页数。
+
+用户于 2026-11-12 回报运行 `ee4e34b0-4935-44df-b29f-5b48c1ad944a` 成功；当前工作区按该 ID 从 `.env` 指向的 PostgreSQL 只读核验到 `SUCCESS`、35 条 `feed_observation`、35 条对应 `x_post`，分类状态均为 `PENDING`。重复采集幂等性仍待验证。
+
+## TypeSafe Jev 分类任务（2026-11-12）
+
+新增 `pnpm x:classify` 手动命令和 `JevPostClassifier`。它从数据库原子认领 `PENDING` 记录，按批次串行调用 TypeSafe `POST https://api.typesafe.ai/v1/systemone`，再将主题、有限标签和 0–1 相关性分数写回 `post_classification`。分类结果的 `classifier` 为 `jev`，`classifier_version` 取服务实际返回的版本；模型默认固定为 `jev-1.14.0`。
+
+默认每批最多 5 条、上限 20 条；失败时只保存安全错误码为 `FAILED`，不自动重试；显式 `--retry-failed` 才重试。超过 1 小时未完成的 `PROCESSING` 记录会在下次命令启动时转为 `FAILED`。发送给 Jev 的状态仅包含帖子文本、引用帖文本和语言；不发送帖子 ID、作者、账号名或 URL。无新增依赖和 migration。
+
+本次只完成源码、类型检查和 lint；未调用 Jev API，未将当前 35 条帖子发往 TypeSafe，实际服务认证、计费、响应映射与分类质量仍待授权运行验证。TypeSafe 当前文档说明实际模型版本由 API 响应返回；数据处理在美国，未启用 Zero Data Retention 时没有公开固定保留时长。详见 [分类流程说明](classification.md)、[TypeSafe 模型文档](https://docs.typesafe.ai/models) 和 [数据处理说明](https://help.typesafe.ai/articles/5974925716)。Cron 与 Web 数据读取仍未接入。

@@ -16,7 +16,8 @@
     "x:auth": "pnpm --filter @x-intelligence/collector x:auth",
     "x:auth:verify": "pnpm --filter @x-intelligence/collector x:auth:verify",
     "x:collect:probe": "pnpm --filter @x-intelligence/collector x:collect:probe",
-    "x:collect:run": "pnpm --filter @x-intelligence/collector x:collect:run"
+    "x:collect:run": "pnpm --filter @x-intelligence/collector x:collect:run",
+    "x:classify": "pnpm --filter @x-intelligence/collector x:classify"
   },
   "devDependencies": {
     "@babel/generator": "^8.0.6",

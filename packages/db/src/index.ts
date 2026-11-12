@@ -1,7 +1,11 @@
-import { eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, lt, sql } from "drizzle-orm";
 import { Pool } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-serverless";
-import type { FeedObservation } from "@x-intelligence/shared";
+import type {
+  FeedObservation,
+  PostClassification,
+  XPost,
+} from "@x-intelligence/shared";
 import * as schema from "./schema";
 export * from "./schema";
 // Lazy connection: builds do not require credentials. Caller owns pool cleanup.
@@ -119,6 +123,163 @@ export async function failFeedRun(
       errorMessage: errorCode.slice(0, 120),
     })
     .where(eq(schema.feedRun.id, runId));
+}
+
+export async function claimPendingClassifications(
+  db: DatabaseClient,
+  limit: number,
+  retryFailed = false,
+): Promise<XPost[]> {
+  if (!Number.isInteger(limit) || limit < 1 || limit > 20) {
+    throw new RangeError("classification limit must be 1..20");
+  }
+
+  const eligibleStatuses = retryFailed
+    ? (["PENDING", "FAILED"] as const)
+    : (["PENDING"] as const);
+  return db.transaction(async (tx) => {
+    const candidates = await tx
+      .select({ postId: schema.postClassification.postId })
+      .from(schema.postClassification)
+      .where(inArray(schema.postClassification.status, eligibleStatuses))
+      .orderBy(
+        asc(schema.postClassification.createdAt),
+        asc(schema.postClassification.postId),
+      )
+      .limit(limit);
+    const candidateIds = candidates.map(({ postId }) => postId);
+    if (candidateIds.length === 0) return [];
+
+    const claimed = await tx
+      .update(schema.postClassification)
+      .set({
+        status: "PROCESSING",
+        retryCount: sql`${schema.postClassification.retryCount} + 1`,
+        topic: null,
+        tags: [],
+        relevanceScore: null,
+        classifier: null,
+        classifierVersion: null,
+        errorMessage: null,
+        classifiedAt: null,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          inArray(schema.postClassification.postId, candidateIds),
+          inArray(schema.postClassification.status, eligibleStatuses),
+        ),
+      )
+      .returning({ postId: schema.postClassification.postId });
+    const claimedIds = claimed.map(({ postId }) => postId);
+    if (claimedIds.length === 0) return [];
+
+    const rows = await tx
+      .select()
+      .from(schema.xPost)
+      .where(inArray(schema.xPost.id, claimedIds));
+    const positions = new Map(
+      candidateIds.map((postId, index) => [postId, index]),
+    );
+    return rows
+      .sort(
+        (left, right) =>
+          (positions.get(left.id) ?? Number.MAX_SAFE_INTEGER) -
+          (positions.get(right.id) ?? Number.MAX_SAFE_INTEGER),
+      )
+      .map(toXPost);
+  });
+}
+
+export async function completePostClassification(
+  db: DatabaseClient,
+  postId: string,
+  classification: PostClassification,
+): Promise<void> {
+  const [updated] = await db
+    .update(schema.postClassification)
+    .set({
+      topic: classification.topic,
+      tags: classification.tags,
+      relevanceScore: classification.relevanceScore,
+      classifier: classification.classifier,
+      classifierVersion: classification.classifierVersion,
+      status: "CLASSIFIED",
+      errorMessage: null,
+      classifiedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(schema.postClassification.postId, postId),
+        eq(schema.postClassification.status, "PROCESSING"),
+      ),
+    )
+    .returning({ postId: schema.postClassification.postId });
+  if (!updated) throw new Error("CLASSIFICATION_STATE_CONFLICT");
+}
+
+export async function failPostClassification(
+  db: DatabaseClient,
+  postId: string,
+  errorCode: string,
+): Promise<void> {
+  const [updated] = await db
+    .update(schema.postClassification)
+    .set({
+      status: "FAILED",
+      errorMessage: errorCode.slice(0, 120),
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(schema.postClassification.postId, postId),
+        eq(schema.postClassification.status, "PROCESSING"),
+      ),
+    )
+    .returning({ postId: schema.postClassification.postId });
+  if (!updated) throw new Error("CLASSIFICATION_STATE_CONFLICT");
+}
+
+export async function failStaleClassifications(
+  db: DatabaseClient,
+  staleAfterMs = 60 * 60 * 1000,
+): Promise<number> {
+  if (!Number.isInteger(staleAfterMs) || staleAfterMs < 1) {
+    throw new RangeError("staleAfterMs must be a positive integer");
+  }
+  const cutoff = new Date(Date.now() - staleAfterMs);
+  const updated = await db
+    .update(schema.postClassification)
+    .set({
+      status: "FAILED",
+      errorMessage: "PROCESSING_STALE",
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(schema.postClassification.status, "PROCESSING"),
+        lt(schema.postClassification.updatedAt, cutoff),
+      ),
+    )
+    .returning({ postId: schema.postClassification.postId });
+  return updated.length;
+}
+
+function toXPost(post: typeof schema.xPost.$inferSelect): XPost {
+  return {
+    id: post.id,
+    url: post.url,
+    text: post.text,
+    lang: post.lang,
+    authorId: post.authorId,
+    username: post.username,
+    authorName: post.authorName,
+    publishedAt: post.publishedAt?.toISOString() ?? null,
+    images: post.mediaJson,
+    quotedPostId: post.quotedPostId,
+    quotedText: post.quotedText,
+  };
 }
 
 function parsePostDate(value: string | null): Date | null {
