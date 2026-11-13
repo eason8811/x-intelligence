@@ -12,6 +12,25 @@ export const TOPICS = [
   "other",
 ] as const;
 export type Topic = (typeof TOPICS)[number];
+export const CLASSIFICATION_TAGS = [
+  "openai",
+  "claude",
+  "gemini",
+  "llm",
+  "agent",
+  "mcp",
+  "rag",
+  "java",
+  "spring",
+  "react",
+  "nextjs",
+  "vue",
+  "database",
+  "devops",
+  "github",
+  "open_source",
+] as const;
+export type ClassificationTag = (typeof CLASSIFICATION_TAGS)[number];
 export type FeedRunStatus = "RUNNING" | "SUCCESS" | "PARTIAL" | "FAILED";
 export type ClassificationStatus =
   | "PENDING"

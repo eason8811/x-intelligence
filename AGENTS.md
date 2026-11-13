@@ -14,7 +14,7 @@
 
 - 使用 pnpm、Turborepo、TypeScript strict。
 - 保持 `apps/web`、`apps/collector` 和四个共享 package 的边界，不继续拆分 package。
-- Web 使用 Next.js App Router、Tailwind CSS v4、shadcn/ui；优先 Server Components。
+- Web 使用 Next.js App Router、Tailwind CSS v4、shadcn/ui；使用 Base UI primitives 与 preset `b3REvH1Um`，并按下列约束使用 Animate UI；优先 Server Components。
 - Collector 使用轻量 Next.js API 应用，不负责 Web UI。
 - 数据库使用 PostgreSQL、Neon、Drizzle；Schema 修改同步 migration。
 - Phase 1 不实现真实 X 采集、Jev 接入、生产 Cron 或 Private Blob 配置。
@@ -31,6 +31,14 @@
 - storageState 视为账号凭证，不提交 Git、不公开发布、不明文存数据库；写入 PostgreSQL 前必须用环境密钥做应用层 AES-GCM 加密。
 - Secret 不使用 NEXT_PUBLIC_；Cron 接口验证 CRON_SECRET。
 - 不引入文档排除的消息队列、微服务、向量数据库或额外 AI 能力。
+
+## Web UI 组件与动效约束
+
+- 本项目页面默认使用有动效的组件。动效组件的选择顺序为：Animate UI 提供 Primitive 替换的组件 > Animate UI 已提供但没有 Primitive 替换的组件 > 原生 shadcn 组件与 shadcnblocks block（同级）> 经改造的组件 > 自建组件。
+- 选择页面结构时，优先找合适的 shadcnblocks block 或 shadcn 组件；同级情况下按页面需求决定。先保留并调整 block 结构；只有 block 无法满足需求或修改成本接近重写时，才用 shadcnblocks/shadcn 组件重新组合；自建组件仅在现有两类组件都无法满足需求时使用。
+- Animate UI 有对应 Base UI Primitive 时，优先通过 `@animate-ui/cli` 替换 `components/ui` 中的 Primitive。使用这些共享组件的 shadcnblocks block 会继承替换；若 block 自带 Primitive 源码，则检查并按 Animate UI 支持范围适配。CLI 未覆盖的 Primitive 保持原实现，不手工模拟 CLI 替换。
+- 页面布局、普通 HTML、非 shadcn 或已大幅改造的组件需要动效时，先检查 Animate UI Effects；无法满足后再直接使用 Motion。遵循 Animate UI skill 的组件、token、退出动画和减少动态效果要求；首屏主要文本不能因入场动效在服务端 HTML 中隐藏。
+- 通过 `@shadcnblocks` registry 安装 block 并审阅源码。Base UI 控件使用 `render` 等 Base UI API，不把 Radix 的 `asChild` 用在 Base UI 上；Animate UI 组件可以按其自身 API 使用 `asChild`。新增依赖前说明用途。
 
 ## 验证与交付
 

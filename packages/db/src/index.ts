@@ -1,9 +1,23 @@
-import { and, asc, eq, inArray, lt, sql } from "drizzle-orm";
+import {
+  and,
+  arrayContains,
+  asc,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  lt,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import { Pool } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-serverless";
 import type {
+  ClassificationTag,
   FeedObservation,
   PostClassification,
+  Topic,
   XPost,
 } from "@x-intelligence/shared";
 import * as schema from "./schema";
@@ -21,6 +35,102 @@ export type DatabaseClient = Database;
 export interface ClaimedClassification {
   post: XPost;
   attemptNumber: number;
+}
+
+export interface FeedQueryOptions {
+  topic?: Topic;
+  tag?: ClassificationTag;
+  search?: string;
+  period?: "day" | "week" | "month";
+  limit?: number;
+}
+
+export async function listFeedPosts(
+  db: DatabaseClient,
+  options: FeedQueryOptions = {},
+) {
+  const limit = options.limit ?? 50;
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+    throw new RangeError("limit must be an integer from 1 to 100");
+  }
+
+  const filters: SQL[] = [];
+  if (options.topic) {
+    filters.push(eq(schema.postClassification.topic, options.topic));
+  }
+  if (options.tag) {
+    filters.push(
+      arrayContains(schema.postClassification.tags, [options.tag]),
+    );
+  }
+  if (options.period === "day") {
+    filters.push(
+      sql`${schema.xPost.publishedAt} >= now() - interval '1 day'`,
+    );
+  } else if (options.period === "week") {
+    filters.push(
+      sql`${schema.xPost.publishedAt} >= now() - interval '7 days'`,
+    );
+  } else if (options.period === "month") {
+    filters.push(
+      sql`${schema.xPost.publishedAt} >= now() - interval '30 days'`,
+    );
+  }
+  const search = options.search?.trim().slice(0, 120);
+  if (search) {
+    const pattern = `%${search}%`;
+    const searchFilter = or(
+      ilike(schema.xPost.text, pattern),
+      ilike(schema.xPost.authorName, pattern),
+      ilike(schema.xPost.username, pattern),
+    );
+    if (searchFilter) filters.push(searchFilter);
+  }
+
+  const latestObservation = db
+    .select({
+      postId: schema.feedObservation.postId,
+      observedAt: sql<Date>`max(${schema.feedObservation.observedAt})`.as(
+        "observed_at",
+      ),
+    })
+    .from(schema.feedObservation)
+    .groupBy(schema.feedObservation.postId)
+    .as("latest_observation");
+
+  return db
+    .select({
+      id: schema.xPost.id,
+      url: schema.xPost.url,
+      text: schema.xPost.text,
+      lang: schema.xPost.lang,
+      username: schema.xPost.username,
+      authorName: schema.xPost.authorName,
+      publishedAt: schema.xPost.publishedAt,
+      images: schema.xPost.mediaJson,
+      quotedText: schema.xPost.quotedText,
+      topic: schema.postClassification.topic,
+      tags: schema.postClassification.tags,
+      relevanceScore: schema.postClassification.relevanceScore,
+      classificationStatus: schema.postClassification.status,
+      latestObservedAt: latestObservation.observedAt,
+    })
+    .from(schema.xPost)
+    .leftJoin(
+      schema.postClassification,
+      eq(schema.postClassification.postId, schema.xPost.id),
+    )
+    .leftJoin(
+      latestObservation,
+      eq(latestObservation.postId, schema.xPost.id),
+    )
+    .where(filters.length ? and(...filters) : undefined)
+    .orderBy(
+      sql`${latestObservation.observedAt} DESC NULLS LAST`,
+      sql`${schema.xPost.publishedAt} DESC NULLS LAST`,
+      desc(schema.xPost.createdAt),
+    )
+    .limit(limit);
 }
 
 export async function beginFeedRun(

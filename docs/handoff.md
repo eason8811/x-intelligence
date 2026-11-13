@@ -128,9 +128,18 @@ Next.js App Router
 React
 TypeScript
 Tailwind CSS v4
-shadcn/ui
+shadcn/ui（Base UI primitives，preset `b3REvH1Um`）
 shadcnblocks
+Animate UI（动效 Primitive 与 Effects）
 ```
+
+### Web UI 组件约束
+
+本项目页面默认使用有动效的组件。涉及动效时，组件选择顺序为：Animate UI 提供 Primitive 替换的组件 > Animate UI 已提供但没有 Primitive 替换的组件 > 原生 shadcn 组件与 shadcnblocks block（同级）> 经改造的组件 > 自建组件。
+
+页面结构优先复用合适的 shadcnblocks block 或 shadcn 组件；同级时按页面需求选择。先保留并调整现有 block；仅在 block 无法满足需求或修改成本接近重写时，才改用 shadcnblocks/shadcn 组件组合页面；自建组件只用于现有组件都无法满足的情况。Animate UI 有 Base UI Primitive 替换时，优先通过其 CLI 替换共享的 `components/ui` Primitive；引用这些共享组件的 block 会继承动效。CLI 未覆盖的 Primitive 保持原实现。页面布局、普通 HTML、非 shadcn 或大幅改造的组件需要动效时，先使用 Animate UI Effects，再考虑 Motion。
+
+Base UI 控件与 block 使用 Base UI API（如 `render`）；Animate UI 组件则按其自身 API（可包含 `asChild`）使用。实现须遵循 Animate UI skill 的动效与减少动态效果要求；首屏主要文本不能因入场动效在服务端 HTML 中隐藏。详细约束见仓库根目录 `AGENTS.md`。
 
 Web 的职责：
 
@@ -1343,6 +1352,7 @@ X auth status
 ```text
 shadcn/ui
 shadcnblocks
+Animate UI
 Tailwind CSS v4
 ```
 
@@ -2035,4 +2045,14 @@ Jev
 
 新增 `post_classification_attempt` 追加式记录，每次请求前保存非敏感请求快照，收到 JSON 响应后保存原始响应对象，并记录 provider、请求/响应模型、attempt number、状态和安全错误码。认证头和 API Key 不落库；快照包含帖子正文，故有数据保留要求。失败重试新增行，`post_classification` 继续作为当前业务结果。
 
-新增 migration `0002_happy_nighthawk.sql` 已生成，尚未应用到目标 PostgreSQL。此前已完成的 5 条分类不会补出快照；应用 migration 后的新调用才开始记录。Typecheck 和 lint 已通过；真实数据库 migration 执行、审计行写入及后续分类尚待验证。Cron 与 Web 数据读取仍未接入。详见 [分类流程说明](classification.md)。
+新增 migration `0002_happy_nighthawk.sql` 已生成。此段记录形成时，migration 尚未应用；此前已完成的 5 条分类不会补出快照。后续运行结果见下方“分类抽查与 Web 信息流首个读路径”。详见 [分类流程说明](classification.md)。
+
+## 分类抽查与 Web 信息流首个读路径（2026-11-13）
+
+用户提供的审计导出包含 21 行，其中 1 行是此前已讨论的帖子；排除该行后，本次新分类为 20 条，状态均为 `SUCCEEDED`。人工初审认为主题整体可用，内容相关性分数偏低主要与样本中的抽奖、短句、推广帖等内容相符；这只通过原型阶段的初步门槛，不代表统计意义上的准确率。至少有两条短文本上的标签缺少正文证据，后续需扩大抽样并加强标签证据约束。
+
+`0002_happy_nighthawk.sql` 已被后续审计查询结果证明应用到用户所查数据库。`CLASSIFICATION_TAGS` 现位于 shared DTO，Jev 与 Web 共用标签集合。
+
+Twitter Monitor Parser 在生成 `XPost` 前对正文和引用正文解码常见命名实体及十进制/十六进制数字实体；新采集入库的正文会使用解码结果。既有 `post_classification_attempt` 请求快照保持原值；再次采集同一帖子会更新 `x_post`，但不会自动重新运行分类。
+
+Phase 4 首个只读切片已开始：Web `/feed` 服务端查询 `x_post` 与 `post_classification`，支持关键词、主题、标签和时间过滤，并显示分类状态、相关性及帖子原文链接；本地 development 模式读取仓库根 `.env`，生产环境使用部署平台注入的变量。无新 migration，也不触发采集或 Jev。`pnpm typecheck`、`pnpm lint` 和生产构建通过；本机开发服务器通过根 `.env` 读取数据库并返回 HTTP 200，页面生成 35 张帖子卡片。尚未做浏览器截图检查；上线前仍需完成 Web 账号鉴权。

@@ -24,7 +24,41 @@ function bodyText(tweet: ObjectValue): string {
   const note = object(
     object(object(tweet.note_tweet).note_tweet_results).result,
   );
-  return string(note.text) ?? string(object(tweet.legacy).full_text) ?? "";
+  return decodeHtmlEntities(
+    string(note.text) ?? string(object(tweet.legacy).full_text) ?? "",
+  );
+}
+
+const HTML_TEXT_ENTITIES: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: "\u00a0",
+};
+
+function decodeHtmlEntities(value: string): string {
+  return value.replace(
+    /&(?:amp|lt|gt|quot|apos|nbsp|#\d{1,7}|#x[a-f\d]{1,6});/gi,
+    (entity) => {
+      const name = entity.slice(1, -1).toLowerCase();
+      if (!name.startsWith("#")) return HTML_TEXT_ENTITIES[name] ?? entity;
+
+      const hexadecimal = name.startsWith("#x");
+      const digits = name.slice(hexadecimal ? 2 : 1);
+      const codePoint = Number.parseInt(digits, hexadecimal ? 16 : 10);
+      if (
+        !Number.isInteger(codePoint) ||
+        codePoint < 0 ||
+        codePoint > 0x10ffff ||
+        (codePoint >= 0xd800 && codePoint <= 0xdfff)
+      ) {
+        return "\ufffd";
+      }
+      return String.fromCodePoint(codePoint);
+    },
+  );
 }
 
 function normalizeTweet(value: unknown): XPost | null {

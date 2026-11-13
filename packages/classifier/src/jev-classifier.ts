@@ -1,5 +1,10 @@
-import type { PostClassification, Topic, XPost } from "@x-intelligence/shared";
-import { TOPICS } from "@x-intelligence/shared";
+import type {
+  ClassificationTag,
+  PostClassification,
+  Topic,
+  XPost,
+} from "@x-intelligence/shared";
+import { CLASSIFICATION_TAGS, TOPICS } from "@x-intelligence/shared";
 import {
   ClassifierError,
   type PostClassifier,
@@ -30,7 +35,7 @@ const TOPIC_DESCRIPTIONS: Record<Topic, string> = {
   other: "Content that does not fit any other topic.",
 };
 
-const TAGS = {
+const TAG_DESCRIPTIONS: Record<ClassificationTag, string> = {
   openai: "OpenAI and its products or research",
   claude: "Anthropic, Claude, or related products",
   gemini: "Google Gemini or related Google AI products",
@@ -174,10 +179,10 @@ function buildQuestions(): Record<string, Question> {
     },
   };
 
-  for (const [tag, description] of Object.entries(TAGS)) {
+  for (const tag of CLASSIFICATION_TAGS) {
     questions[`tag_${tag}`] = {
       type: "noul",
-      instructions: `The post is meaningfully about this tag: ${description}`,
+      instructions: `The post is meaningfully about this tag: ${TAG_DESCRIPTIONS[tag]}`,
       criteria: {
         true: "The tag is a central or clearly relevant subject of the post.",
         false: "The tag is absent, incidental, or only mentioned in passing.",
@@ -216,7 +221,7 @@ function toPostClassification(response: JevResponse): PostClassification {
     throw new ClassifierError("INVALID_RESPONSE");
   }
 
-  const tags = Object.keys(TAGS).filter((tag) => {
+  const tags = CLASSIFICATION_TAGS.filter((tag) => {
     const answer = answerFor(response.answers, `tag_${tag}`, "noul");
     if (
       typeof answer.noul !== "number" ||

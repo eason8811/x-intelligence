@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import "./globals.css";
+import { Inter } from "next/font/google";
+import { Sidebar1 } from "@/components/sidebar1";
+import { TooltipProvider } from "@/components/ui/tooltip";
+
+const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
   title: "X Intelligence",
@@ -10,21 +14,11 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="zh-CN" className="font-sans">
+    <html lang="zh-CN" className={inter.variable}>
       <body>
-        <div className="mx-auto flex max-w-5xl flex-col gap-8 p-6">
-          <header className="flex flex-wrap items-center gap-6">
-            <Link href="/dashboard" className="font-semibold">
-              X Intelligence
-            </Link>
-            <nav aria-label="主导航" className="flex gap-4">
-              <Link href="/dashboard">概览</Link>
-              <Link href="/feed">信息流</Link>
-              <Link href="/runs">采集记录</Link>
-            </nav>
-          </header>
-          <main>{children}</main>
-        </div>
+        <TooltipProvider>
+          <Sidebar1>{children}</Sidebar1>
+        </TooltipProvider>
       </body>
     </html>
   );
