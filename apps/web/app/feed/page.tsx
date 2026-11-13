@@ -392,11 +392,16 @@ export default async function FeedPage({
                           <ProgressLabel className="text-muted-foreground">
                             相关性 · {relevanceLabel(score)}
                           </ProgressLabel>
-                          <ProgressValue className="font-medium text-foreground">
-                            {() =>
-                              score === null ? "—" : `${scorePercent}%`
-                            }
-                          </ProgressValue>
+                          {score === null ? (
+                            <span
+                              aria-hidden="true"
+                              className="ml-auto text-sm font-medium text-foreground tabular-nums"
+                            >
+                              —
+                            </span>
+                          ) : (
+                            <ProgressValue className="font-medium text-foreground" />
+                          )}
                         </div>
                       </Progress>
                     </div>
