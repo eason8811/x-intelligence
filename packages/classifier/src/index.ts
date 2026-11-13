@@ -1,7 +1,21 @@
 import type { XPost, PostClassification } from "@x-intelligence/shared";
 export type { PostClassification } from "@x-intelligence/shared";
+
+export interface PreparedClassificationRequest {
+  provider: string;
+  classifier: string;
+  model: string;
+  endpoint: string;
+  method: "POST";
+  timeoutMs: number;
+  headers: { "Content-Type": "application/json" };
+  body: Record<string, unknown>;
+}
+
 export interface PostClassifier {
-  classify(post: XPost): Promise<PostClassification>;
+  prepareRequest(post: XPost): PreparedClassificationRequest;
+  sendRequest(request: PreparedClassificationRequest): Promise<unknown>;
+  parseResponse(response: unknown): PostClassification;
 }
 
 export type ClassifierErrorCode =

@@ -9,6 +9,7 @@ import {
   uuid,
   primaryKey,
   index,
+  uniqueIndex,
   doublePrecision,
   check,
 } from "drizzle-orm/pg-core";
@@ -26,6 +27,10 @@ export const classificationStatusEnum = pgEnum("classification_status", [
   "CLASSIFIED",
   "FAILED",
 ]);
+export const classificationAttemptStatusEnum = pgEnum(
+  "classification_attempt_status",
+  ["PROCESSING", "SUCCEEDED", "FAILED"],
+);
 const time = (name: string) =>
   timestamp(name, { withTimezone: true, mode: "date" });
 export const xPost = pgTable("x_post", {
@@ -108,6 +113,48 @@ export const postClassification = pgTable(
     check(
       "classified_result_required",
       sql`${t.status} <> 'CLASSIFIED' OR (${t.topic} IS NOT NULL AND ${t.relevanceScore} IS NOT NULL AND ${t.classifier} IS NOT NULL AND ${t.classifierVersion} IS NOT NULL AND ${t.classifiedAt} IS NOT NULL)`,
+    ),
+  ],
+);
+export const postClassificationAttempt = pgTable(
+  "post_classification_attempt",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    postId: text("post_id")
+      .notNull()
+      .references(() => xPost.id, { onDelete: "cascade" }),
+    attemptNumber: integer("attempt_number").notNull(),
+    provider: text("provider").notNull(),
+    classifier: text("classifier").notNull(),
+    modelRequested: text("model_requested").notNull(),
+    modelReturned: text("model_returned"),
+    requestSnapshot: jsonb("request_snapshot")
+      .$type<Record<string, unknown>>()
+      .notNull(),
+    responseSnapshot: jsonb("response_snapshot").$type<unknown>(),
+    status: classificationAttemptStatusEnum("status")
+      .notNull()
+      .default("PROCESSING"),
+    errorCode: text("error_code"),
+    startedAt: time("started_at").notNull().defaultNow(),
+    completedAt: time("completed_at"),
+  },
+  (t) => [
+    uniqueIndex("post_classification_attempt_post_attempt_unique_idx").on(
+      t.postId,
+      t.attemptNumber,
+    ),
+    index("post_classification_attempt_status_started_idx").on(
+      t.status,
+      t.startedAt,
+    ),
+    check(
+      "classification_attempt_number_positive",
+      sql`${t.attemptNumber} > 0`,
+    ),
+    check(
+      "classification_attempt_terminal_fields",
+      sql`(${t.status} = 'PROCESSING' AND ${t.completedAt} IS NULL AND ${t.errorCode} IS NULL) OR (${t.status} = 'SUCCEEDED' AND ${t.completedAt} IS NOT NULL AND ${t.responseSnapshot} IS NOT NULL AND ${t.modelReturned} IS NOT NULL AND ${t.errorCode} IS NULL) OR (${t.status} = 'FAILED' AND ${t.completedAt} IS NOT NULL AND ${t.errorCode} IS NOT NULL)`,
     ),
   ],
 );

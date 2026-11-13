@@ -1,7 +1,8 @@
 import {
+  beginPostClassificationAttempt,
   claimPendingClassifications,
-  completePostClassification,
-  failPostClassification,
+  completePostClassificationAttempt,
+  failPostClassificationAttempt,
   type DatabaseClient,
 } from "@x-intelligence/db";
 import {
@@ -26,26 +27,66 @@ export async function classifyPendingBatch(
   let classified = 0;
   let failed = 0;
 
-  for (const post of posts) {
+  for (const { post, attemptNumber } of posts) {
+    const request = classifier.prepareRequest(post);
+    const attemptId = await beginPostClassificationAttempt(db, {
+      postId: post.id,
+      attemptNumber,
+      provider: request.provider,
+      classifier: request.classifier,
+      modelRequested: request.model,
+      requestSnapshot: {
+        endpoint: request.endpoint,
+        method: request.method,
+        timeoutMs: request.timeoutMs,
+        headers: request.headers,
+        body: request.body,
+      },
+    });
+
+    let responseSnapshot: unknown | null = null;
     let result: PostClassification;
     try {
-      result = await classifier.classify(post);
+      responseSnapshot = await classifier.sendRequest(request);
+      result = classifier.parseResponse(responseSnapshot);
       validateClassification(result);
     } catch (error) {
-      await failPostClassification(
-        db,
-        post.id,
-        error instanceof ClassifierError ? error.code : "CLASSIFIER_FAILED",
-      );
+      await failPostClassificationAttempt(db, {
+        attemptId,
+        postId: post.id,
+        errorCode:
+          error instanceof ClassifierError ? error.code : "CLASSIFIER_FAILED",
+        modelReturned: getResponseModel(responseSnapshot),
+        responseSnapshot,
+      });
       failed++;
       continue;
     }
 
-    await completePostClassification(db, post.id, result);
+    await completePostClassificationAttempt(db, {
+      attemptId,
+      postId: post.id,
+      modelReturned: result.classifierVersion,
+      responseSnapshot,
+      classification: result,
+    });
     classified++;
   }
 
   return { claimed: posts.length, classified, failed };
+}
+
+function getResponseModel(response: unknown): string | null {
+  if (
+    typeof response === "object" &&
+    response !== null &&
+    !Array.isArray(response) &&
+    "model" in response &&
+    typeof response.model === "string"
+  ) {
+    return response.model;
+  }
+  return null;
 }
 
 function validateClassification(value: PostClassification): void {

@@ -18,6 +18,11 @@ export function createDatabase(connectionString: string) {
 type Database = ReturnType<typeof createDatabase>["db"];
 export type DatabaseClient = Database;
 
+export interface ClaimedClassification {
+  post: XPost;
+  attemptNumber: number;
+}
+
 export async function beginFeedRun(
   db: DatabaseClient,
   targetCount: number,
@@ -129,7 +134,7 @@ export async function claimPendingClassifications(
   db: DatabaseClient,
   limit: number,
   retryFailed = false,
-): Promise<XPost[]> {
+): Promise<ClaimedClassification[]> {
   if (!Number.isInteger(limit) || limit < 1 || limit > 20) {
     throw new RangeError("classification limit must be 1..20");
   }
@@ -170,10 +175,16 @@ export async function claimPendingClassifications(
           inArray(schema.postClassification.status, eligibleStatuses),
         ),
       )
-      .returning({ postId: schema.postClassification.postId });
+      .returning({
+        postId: schema.postClassification.postId,
+        attemptNumber: schema.postClassification.retryCount,
+      });
     const claimedIds = claimed.map(({ postId }) => postId);
     if (claimedIds.length === 0) return [];
 
+    const attemptNumbers = new Map(
+      claimed.map(({ postId, attemptNumber }) => [postId, attemptNumber]),
+    );
     const rows = await tx
       .select()
       .from(schema.xPost)
@@ -187,58 +198,155 @@ export async function claimPendingClassifications(
           (positions.get(left.id) ?? Number.MAX_SAFE_INTEGER) -
           (positions.get(right.id) ?? Number.MAX_SAFE_INTEGER),
       )
-      .map(toXPost);
+      .map((row) => {
+        const attemptNumber = attemptNumbers.get(row.id);
+        if (attemptNumber === undefined) {
+          throw new Error("CLASSIFICATION_ATTEMPT_NUMBER_MISSING");
+        }
+        return { post: toXPost(row), attemptNumber };
+      });
   });
 }
 
-export async function completePostClassification(
+export async function beginPostClassificationAttempt(
   db: DatabaseClient,
-  postId: string,
-  classification: PostClassification,
-): Promise<void> {
-  const [updated] = await db
-    .update(schema.postClassification)
-    .set({
-      topic: classification.topic,
-      tags: classification.tags,
-      relevanceScore: classification.relevanceScore,
-      classifier: classification.classifier,
-      classifierVersion: classification.classifierVersion,
-      status: "CLASSIFIED",
-      errorMessage: null,
-      classifiedAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(schema.postClassification.postId, postId),
-        eq(schema.postClassification.status, "PROCESSING"),
-      ),
-    )
-    .returning({ postId: schema.postClassification.postId });
-  if (!updated) throw new Error("CLASSIFICATION_STATE_CONFLICT");
+  input: {
+    postId: string;
+    attemptNumber: number;
+    provider: string;
+    classifier: string;
+    modelRequested: string;
+    requestSnapshot: Record<string, unknown>;
+  },
+): Promise<string> {
+  return db.transaction(async (tx) => {
+    const [classification] = await tx
+      .select({
+        status: schema.postClassification.status,
+        retryCount: schema.postClassification.retryCount,
+      })
+      .from(schema.postClassification)
+      .where(eq(schema.postClassification.postId, input.postId))
+      .for("update");
+    if (
+      classification?.status !== "PROCESSING" ||
+      classification.retryCount !== input.attemptNumber
+    ) {
+      throw new Error("CLASSIFICATION_STATE_CONFLICT");
+    }
+
+    const [attempt] = await tx
+      .insert(schema.postClassificationAttempt)
+      .values(input)
+      .returning({ id: schema.postClassificationAttempt.id });
+    if (!attempt) throw new Error("CLASSIFICATION_ATTEMPT_CREATE_FAILED");
+    return attempt.id;
+  });
 }
 
-export async function failPostClassification(
+export async function completePostClassificationAttempt(
   db: DatabaseClient,
-  postId: string,
-  errorCode: string,
+  input: {
+    attemptId: string;
+    postId: string;
+    modelReturned: string;
+    responseSnapshot: unknown;
+    classification: PostClassification;
+  },
 ): Promise<void> {
-  const [updated] = await db
-    .update(schema.postClassification)
-    .set({
-      status: "FAILED",
-      errorMessage: errorCode.slice(0, 120),
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(schema.postClassification.postId, postId),
-        eq(schema.postClassification.status, "PROCESSING"),
-      ),
-    )
-    .returning({ postId: schema.postClassification.postId });
-  if (!updated) throw new Error("CLASSIFICATION_STATE_CONFLICT");
+  const now = new Date();
+  await db.transaction(async (tx) => {
+    const [attempt] = await tx
+      .update(schema.postClassificationAttempt)
+      .set({
+        modelReturned: input.modelReturned,
+        responseSnapshot: input.responseSnapshot,
+        status: "SUCCEEDED",
+        errorCode: null,
+        completedAt: now,
+      })
+      .where(
+        and(
+          eq(schema.postClassificationAttempt.id, input.attemptId),
+          eq(schema.postClassificationAttempt.postId, input.postId),
+          eq(schema.postClassificationAttempt.status, "PROCESSING"),
+        ),
+      )
+      .returning({ id: schema.postClassificationAttempt.id });
+    if (!attempt) throw new Error("CLASSIFICATION_ATTEMPT_STATE_CONFLICT");
+
+    const [updated] = await tx
+      .update(schema.postClassification)
+      .set({
+        topic: input.classification.topic,
+        tags: input.classification.tags,
+        relevanceScore: input.classification.relevanceScore,
+        classifier: input.classification.classifier,
+        classifierVersion: input.classification.classifierVersion,
+        status: "CLASSIFIED",
+        errorMessage: null,
+        classifiedAt: now,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(schema.postClassification.postId, input.postId),
+          eq(schema.postClassification.status, "PROCESSING"),
+        ),
+      )
+      .returning({ postId: schema.postClassification.postId });
+    if (!updated) throw new Error("CLASSIFICATION_STATE_CONFLICT");
+  });
+}
+
+export async function failPostClassificationAttempt(
+  db: DatabaseClient,
+  input: {
+    attemptId: string;
+    postId: string;
+    errorCode: string;
+    modelReturned: string | null;
+    responseSnapshot: unknown | null;
+  },
+): Promise<void> {
+  const now = new Date();
+  const errorCode = input.errorCode.slice(0, 120);
+  await db.transaction(async (tx) => {
+    const [attempt] = await tx
+      .update(schema.postClassificationAttempt)
+      .set({
+        modelReturned: input.modelReturned,
+        responseSnapshot: input.responseSnapshot,
+        status: "FAILED",
+        errorCode,
+        completedAt: now,
+      })
+      .where(
+        and(
+          eq(schema.postClassificationAttempt.id, input.attemptId),
+          eq(schema.postClassificationAttempt.postId, input.postId),
+          eq(schema.postClassificationAttempt.status, "PROCESSING"),
+        ),
+      )
+      .returning({ id: schema.postClassificationAttempt.id });
+    if (!attempt) throw new Error("CLASSIFICATION_ATTEMPT_STATE_CONFLICT");
+
+    const [updated] = await tx
+      .update(schema.postClassification)
+      .set({
+        status: "FAILED",
+        errorMessage: errorCode,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(schema.postClassification.postId, input.postId),
+          eq(schema.postClassification.status, "PROCESSING"),
+        ),
+      )
+      .returning({ postId: schema.postClassification.postId });
+    if (!updated) throw new Error("CLASSIFICATION_STATE_CONFLICT");
+  });
 }
 
 export async function failStaleClassifications(
@@ -249,21 +357,38 @@ export async function failStaleClassifications(
     throw new RangeError("staleAfterMs must be a positive integer");
   }
   const cutoff = new Date(Date.now() - staleAfterMs);
-  const updated = await db
-    .update(schema.postClassification)
-    .set({
-      status: "FAILED",
-      errorMessage: "PROCESSING_STALE",
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(schema.postClassification.status, "PROCESSING"),
-        lt(schema.postClassification.updatedAt, cutoff),
-      ),
-    )
-    .returning({ postId: schema.postClassification.postId });
-  return updated.length;
+  const now = new Date();
+  return db.transaction(async (tx) => {
+    await tx
+      .update(schema.postClassificationAttempt)
+      .set({
+        status: "FAILED",
+        errorCode: "PROCESSING_STALE",
+        completedAt: now,
+      })
+      .where(
+        and(
+          eq(schema.postClassificationAttempt.status, "PROCESSING"),
+          lt(schema.postClassificationAttempt.startedAt, cutoff),
+        ),
+      );
+
+    const updated = await tx
+      .update(schema.postClassification)
+      .set({
+        status: "FAILED",
+        errorMessage: "PROCESSING_STALE",
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(schema.postClassification.status, "PROCESSING"),
+          lt(schema.postClassification.updatedAt, cutoff),
+        ),
+      )
+      .returning({ postId: schema.postClassification.postId });
+    return updated.length;
+  });
 }
 
 function toXPost(post: typeof schema.xPost.$inferSelect): XPost {

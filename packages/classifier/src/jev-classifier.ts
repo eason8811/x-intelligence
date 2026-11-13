@@ -1,6 +1,10 @@
 import type { PostClassification, Topic, XPost } from "@x-intelligence/shared";
 import { TOPICS } from "@x-intelligence/shared";
-import { ClassifierError, type PostClassifier } from "./index";
+import {
+  ClassifierError,
+  type PostClassifier,
+  type PreparedClassificationRequest,
+} from "./index";
 
 const API_URL = "https://api.typesafe.ai/v1/systemone";
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -80,31 +84,44 @@ export class JevPostClassifier implements PostClassifier {
     }
   }
 
-  async classify(post: XPost): Promise<PostClassification> {
+  prepareRequest(post: XPost): PreparedClassificationRequest {
+    return {
+      provider: "typesafe",
+      classifier: "jev",
+      model: this.model,
+      endpoint: API_URL,
+      method: "POST",
+      timeoutMs: REQUEST_TIMEOUT_MS,
+      headers: { "Content-Type": "application/json" },
+      body: {
+        model: this.model,
+        state: {
+          platform: "X",
+          post_text: post.text,
+          quoted_post_text: post.quotedText,
+          language: post.lang,
+        },
+        questions: buildQuestions(),
+      },
+    };
+  }
+
+  async sendRequest(request: PreparedClassificationRequest): Promise<unknown> {
     const controller = new AbortController();
     let timedOut = false;
     const timer = setTimeout(() => {
       timedOut = true;
       controller.abort();
-    }, REQUEST_TIMEOUT_MS);
+    }, request.timeoutMs);
 
     try {
-      const response = await fetch(API_URL, {
-        method: "POST",
+      const response = await fetch(request.endpoint, {
+        method: request.method,
         headers: {
           Authorization: `Bearer ${this.apiKey}`,
-          "Content-Type": "application/json",
+          ...request.headers,
         },
-        body: JSON.stringify({
-          model: this.model,
-          state: {
-            platform: "X",
-            post_text: post.text,
-            quoted_post_text: post.quotedText,
-            language: post.lang,
-          },
-          questions: buildQuestions(),
-        }),
+        body: JSON.stringify(request.body),
         signal: controller.signal,
       });
 
@@ -118,21 +135,23 @@ export class JevPostClassifier implements PostClassifier {
         throw new ClassifierError("REQUEST_FAILED");
       }
 
-      let payload: unknown;
       try {
-        payload = await response.json();
+        return await response.json();
       } catch {
         throw new ClassifierError(
           timedOut ? "TIMEOUT" : "INVALID_RESPONSE",
         );
       }
-      return toPostClassification(parseResponse(payload));
     } catch (error) {
       if (error instanceof ClassifierError) throw error;
       throw new ClassifierError(timedOut ? "TIMEOUT" : "REQUEST_FAILED");
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  parseResponse(response: unknown): PostClassification {
+    return toPostClassification(parseJevResponse(response));
   }
 }
 
@@ -168,7 +187,7 @@ function buildQuestions(): Record<string, Question> {
   return questions;
 }
 
-function parseResponse(payload: unknown): JevResponse {
+function parseJevResponse(payload: unknown): JevResponse {
   if (!isRecord(payload) || typeof payload.model !== "string") {
     throw new ClassifierError("INVALID_RESPONSE");
   }

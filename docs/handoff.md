@@ -2029,4 +2029,10 @@ Jev
 
 默认每批最多 5 条、上限 20 条；失败时只保存安全错误码为 `FAILED`，不自动重试；显式 `--retry-failed` 才重试。超过 1 小时未完成的 `PROCESSING` 记录会在下次命令启动时转为 `FAILED`。发送给 Jev 的状态仅包含帖子文本、引用帖文本和语言；不发送帖子 ID、作者、账号名或 URL。无新增依赖和 migration。
 
-本次只完成源码、类型检查和 lint；未调用 Jev API，未将当前 35 条帖子发往 TypeSafe，实际服务认证、计费、响应映射与分类质量仍待授权运行验证。TypeSafe 当前文档说明实际模型版本由 API 响应返回；数据处理在美国，未启用 Zero Data Retention 时没有公开固定保留时长。详见 [分类流程说明](classification.md)、[TypeSafe 模型文档](https://docs.typesafe.ai/models) 和 [数据处理说明](https://help.typesafe.ai/articles/5974925716)。Cron 与 Web 数据读取仍未接入。
+用户于 2026-11-13 回报在 Windows 环境执行 `pnpm x:classify --count 5` 成功；其 SQL 显示 5 条 `CLASSIFIED`（`jev-1.14.0`）、30 条 `PENDING`，无失败。这验证了少量真实 Jev 请求、响应映射和数据库写回。用户提供的 5 条文本中主题整体合理；`agent` 标签是否过宽、广告类内容的相关性评分仍待更多样本评估。最后一条正文含 `&amp;`，需确认 X 返回文本是否需在采集解析时解码。
+
+## Jev 分类尝试快照（2026-11-13）
+
+新增 `post_classification_attempt` 追加式记录，每次请求前保存非敏感请求快照，收到 JSON 响应后保存原始响应对象，并记录 provider、请求/响应模型、attempt number、状态和安全错误码。认证头和 API Key 不落库；快照包含帖子正文，故有数据保留要求。失败重试新增行，`post_classification` 继续作为当前业务结果。
+
+新增 migration `0002_happy_nighthawk.sql` 已生成，尚未应用到目标 PostgreSQL。此前已完成的 5 条分类不会补出快照；应用 migration 后的新调用才开始记录。Typecheck 和 lint 已通过；真实数据库 migration 执行、审计行写入及后续分类尚待验证。Cron 与 Web 数据读取仍未接入。详见 [分类流程说明](classification.md)。

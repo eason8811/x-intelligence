@@ -15,6 +15,13 @@
       "when": 1794285794812,
       "tag": "0001_nervous_fallen_one",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794539304282,
+      "tag": "0002_happy_nighthawk",
+      "breakpoints": true
     }
   ]
 }
