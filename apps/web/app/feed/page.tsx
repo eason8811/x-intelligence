@@ -1,6 +1,5 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Effect } from "@animate-ui/react/primitives/effects/effect";
 import {
   CLASSIFICATION_TAGS,
   TOPICS,
@@ -10,6 +9,7 @@ import {
 import { listFeedPosts } from "@x-intelligence/db";
 import { FilterPanel, FilterPanelSection } from "@/components/shadcnblocks/filter-panel";
 import { FeedPostLink } from "@/components/feed-post-link";
+import { FeedPostReveal } from "@/components/feed-post-reveal";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -414,16 +414,7 @@ export default async function FeedPage({
 
             if (index === 0) return article;
             return (
-              <Effect
-                key={post.id}
-                asChild
-                inView
-                fade
-                slide={{ direction: "up", offset: 12 }}
-                blur={{ initialBlur: 2 }}
-              >
-                {article}
-              </Effect>
+              <FeedPostReveal key={post.id}>{article}</FeedPostReveal>
             );
           })}
         </div>
