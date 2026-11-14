@@ -1,6 +1,6 @@
 import { ArrowRight, Clock3 } from "lucide-react";
 import Link from "next/link";
-import { Effect } from "@animate-ui/react/primitives/effects/effect";
+import { HydrationSafeEffect } from "@/components/hydration-safe-effect";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,7 +26,7 @@ export default function RunsPage() {
         </p>
       </header>
 
-      <Effect
+      <HydrationSafeEffect
         asChild
         inView
         fade
@@ -60,7 +60,7 @@ export default function RunsPage() {
             </CardContent>
           </Card>
         </div>
-      </Effect>
+      </HydrationSafeEffect>
     </section>
   );
 }

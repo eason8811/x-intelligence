@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, ListChecks, Newspaper } from "lucide-react";
-import { Effects } from "@animate-ui/react/primitives/effects/effect";
+import { HydrationSafeEffects } from "@/components/hydration-safe-effect";
 import {
   Card,
   CardContent,
@@ -43,7 +43,7 @@ export default function DashboardPage() {
       </header>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Effects
+        <HydrationSafeEffects
           asChild
           inView
           fade
@@ -81,7 +81,7 @@ export default function DashboardPage() {
               </div>
             );
           })}
-        </Effects>
+        </HydrationSafeEffects>
       </div>
 
       <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
