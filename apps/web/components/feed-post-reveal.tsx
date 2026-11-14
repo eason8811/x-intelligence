@@ -1,29 +1,33 @@
 "use client";
 
 import {
-  useEffect,
-  useRef,
-  useState,
+  useSyncExternalStore,
   type ReactElement,
 } from "react";
 import { Effect } from "@animate-ui/react/primitives/effects/effect";
 
+function subscribeToHydration() {
+  return () => {};
+}
+
+function getClientSnapshot() {
+  return true;
+}
+
+function getServerSnapshot() {
+  return false;
+}
+
 export function FeedPostReveal({ children }: { children: ReactElement }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [revealOnScroll, setRevealOnScroll] = useState(false);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const { top, bottom } = container.getBoundingClientRect();
-    const isInitiallyVisible = top < window.innerHeight && bottom > 0;
-    setRevealOnScroll(!isInitiallyVisible);
-  }, []);
+  const animationReady = useSyncExternalStore(
+    subscribeToHydration,
+    getClientSnapshot,
+    getServerSnapshot,
+  );
 
   return (
-    <div ref={containerRef}>
-      {revealOnScroll ? (
+    <div>
+      {animationReady ? (
         <Effect
           asChild
           inView

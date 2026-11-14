@@ -301,7 +301,7 @@ export default async function FeedPage({
         </Alert>
       ) : posts?.length ? (
         <div className="space-y-4">
-          {posts.map((post, index) => {
+          {posts.map((post) => {
             const score = post.relevanceScore;
             const scorePercent = score === null ? 0 : Math.round(score * 100);
             const imageUrls = post.images
@@ -412,7 +412,6 @@ export default async function FeedPage({
               </article>
             );
 
-            if (index === 0) return article;
             return (
               <FeedPostReveal key={post.id}>{article}</FeedPostReveal>
             );
