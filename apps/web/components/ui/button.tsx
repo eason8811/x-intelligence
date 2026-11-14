@@ -50,7 +50,6 @@ function Button({
 }: AnimateButtonProps & VariantProps<typeof buttonVariants>) {
   return (
     <AnimateButton
-      initial={false}
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}

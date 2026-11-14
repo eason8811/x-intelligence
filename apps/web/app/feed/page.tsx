@@ -9,6 +9,7 @@ import {
 } from "@x-intelligence/shared";
 import { listFeedPosts } from "@x-intelligence/db";
 import { FilterPanel, FilterPanelSection } from "@/components/shadcnblocks/filter-panel";
+import { FeedPostLink } from "@/components/feed-post-link";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -405,12 +406,7 @@ export default async function FeedPage({
                         </div>
                       </Progress>
                     </div>
-                    <Button variant="outline" size="sm" asChild>
-                      <a href={post.url} target="_blank" rel="noreferrer">
-                        在 X 打开
-                        <span aria-hidden="true">↗</span>
-                      </a>
-                    </Button>
+                    <FeedPostLink href={post.url} />
                   </CardFooter>
                 </Card>
               </article>
