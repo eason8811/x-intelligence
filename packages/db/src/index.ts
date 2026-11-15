@@ -4,8 +4,10 @@ import {
   asc,
   desc,
   eq,
+  gte,
   ilike,
   inArray,
+  isNotNull,
   lt,
   or,
   sql,
@@ -14,12 +16,14 @@ import {
 import { Pool } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-serverless";
 import type {
+  ClassificationStatus,
   ClassificationTag,
   FeedObservation,
   PostClassification,
   Topic,
   XPost,
 } from "@x-intelligence/shared";
+import { TOPICS } from "@x-intelligence/shared";
 import * as schema from "./schema";
 export * from "./schema";
 // Lazy connection: builds do not require credentials. Caller owns pool cleanup.
@@ -43,6 +47,109 @@ export interface FeedQueryOptions {
   search?: string;
   period?: "day" | "week" | "month";
   limit?: number;
+}
+
+export async function listFeedRuns(db: DatabaseClient, limit = 50) {
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+    throw new RangeError("limit must be an integer from 1 to 100");
+  }
+
+  return db
+    .select({
+      id: schema.feedRun.id,
+      startedAt: schema.feedRun.startedAt,
+      finishedAt: schema.feedRun.finishedAt,
+      status: schema.feedRun.status,
+      targetCount: schema.feedRun.targetCount,
+      collectedCount: schema.feedRun.collectedCount,
+      scrollCount: schema.feedRun.scrollCount,
+      errorMessage: schema.feedRun.errorMessage,
+    })
+    .from(schema.feedRun)
+    .orderBy(desc(schema.feedRun.startedAt))
+    .limit(limit);
+}
+
+export async function getDashboardStats(db: DatabaseClient) {
+  // Dashboard's daily figures use UTC boundaries, matching the database time policy.
+  const utcDayStart = sql`(date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC')`;
+  const utcDayEnd = sql`${utcDayStart} + interval '1 day'`;
+  const todayObservedPosts = db
+    .selectDistinct({ postId: schema.feedObservation.postId })
+    .from(schema.feedObservation)
+    .where(
+      and(
+        gte(schema.feedObservation.observedAt, utcDayStart),
+        lt(schema.feedObservation.observedAt, utcDayEnd),
+      ),
+    )
+    .as("today_observed_posts");
+
+  const [todayCountRows, topicRows, statusRows, totalPostRows, totalRunRows, recentRuns] =
+    await Promise.all([
+      db
+        .select({ count: sql<number>`count(*)`.mapWith(Number) })
+        .from(todayObservedPosts),
+      db
+        .select({
+          topic: schema.postClassification.topic,
+          count: sql<number>`count(*)`.mapWith(Number),
+        })
+        .from(todayObservedPosts)
+        .innerJoin(
+          schema.postClassification,
+          eq(schema.postClassification.postId, todayObservedPosts.postId),
+        )
+        .where(isNotNull(schema.postClassification.topic))
+        .groupBy(schema.postClassification.topic),
+      db
+        .select({
+          status: schema.postClassification.status,
+          count: sql<number>`count(*)`.mapWith(Number),
+        })
+        .from(todayObservedPosts)
+        .leftJoin(
+          schema.postClassification,
+          eq(schema.postClassification.postId, todayObservedPosts.postId),
+        )
+        .groupBy(schema.postClassification.status),
+      db
+        .select({ count: sql<number>`count(*)`.mapWith(Number) })
+        .from(schema.xPost),
+      db
+        .select({ count: sql<number>`count(*)`.mapWith(Number) })
+        .from(schema.feedRun),
+      listFeedRuns(db, 5),
+    ]);
+
+  const topicCounts = new Map(
+    topicRows.flatMap((row) =>
+      row.topic ? [[row.topic, row.count] as const] : [],
+    ),
+  );
+  const classificationCounts: Record<ClassificationStatus, number> = {
+    PENDING: 0,
+    PROCESSING: 0,
+    CLASSIFIED: 0,
+    FAILED: 0,
+  };
+  for (const row of statusRows) {
+    classificationCounts[row.status ?? "PENDING"] += row.count;
+  }
+
+  return {
+    todayPostCount: todayCountRows[0]?.count ?? 0,
+    totalPostCount: totalPostRows[0]?.count ?? 0,
+    totalRunCount: totalRunRows[0]?.count ?? 0,
+    todayTopicDistribution: TOPICS.map((topic) => ({
+      topic,
+      count: topicCounts.get(topic) ?? 0,
+    }))
+      .filter(({ count }) => count > 0)
+      .sort((left, right) => right.count - left.count),
+    todayClassificationCounts: classificationCounts,
+    recentRuns,
+  };
 }
 
 export async function listFeedPosts(

@@ -2056,3 +2056,9 @@ Jev
 Twitter Monitor Parser 在生成 `XPost` 前对正文和引用正文解码常见命名实体及十进制/十六进制数字实体；新采集入库的正文会使用解码结果。既有 `post_classification_attempt` 请求快照保持原值；再次采集同一帖子会更新 `x_post`，但不会自动重新运行分类。
 
 Phase 4 首个只读切片已开始：Web `/feed` 服务端查询 `x_post` 与 `post_classification`，支持关键词、主题、标签和时间过滤，并显示分类状态、相关性及帖子原文链接；本地 development 模式读取仓库根 `.env`，生产环境使用部署平台注入的变量。无新 migration，也不触发采集或 Jev。`pnpm typecheck`、`pnpm lint` 和生产构建通过；本机开发服务器通过根 `.env` 读取数据库并返回 HTTP 200，页面生成 35 张帖子卡片。尚未做浏览器截图检查；上线前仍需完成 Web 账号鉴权。
+
+## Dashboard 与 Runs 数据读路径（2026-11-15）
+
+Phase 4 增加 `/dashboard` 与 `/runs` 的只读数据库查询。Dashboard 展示今日 UTC 时间范围内去重观察到的帖子数、已保存帖子总数、采集运行总数、今日已分类帖子主题分布、今日分类状态和最近 5 次采集运行；`/runs` 按开始时间倒序展示最近 50 次运行的状态、目标/实际采集数、滚动次数、耗时及安全错误码。两页缺少 `DATABASE_URL` 或查询失败时展示明确提示，并增加路由级 Skeleton 加载状态。无 schema/migration 或新依赖；不触发采集、分类或 Jev。
+
+当前通过 DB/Web TypeScript 检查、Web lint、Web 生产构建及 `git diff --check`。本次没有执行数据库查询或浏览器视觉检查，因此统计 SQL 的真实数据库运行结果及页面浏览器表现仍待本地联调确认。
