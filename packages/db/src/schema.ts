@@ -5,6 +5,7 @@ import {
   text,
   timestamp,
   integer,
+  boolean,
   jsonb,
   uuid,
   primaryKey,
@@ -31,6 +32,11 @@ export const classificationAttemptStatusEnum = pgEnum(
   "classification_attempt_status",
   ["PROCESSING", "SUCCEEDED", "FAILED"],
 );
+export const xAccountStatusEnum = pgEnum("x_account_status", [
+  "LEGACY_UNCLAIMED",
+  "CONNECTED",
+  "REAUTH_REQUIRED",
+]);
 const time = (name: string) =>
   timestamp(name, { withTimezone: true, mode: "date" });
 export const xPost = pgTable("x_post", {
@@ -48,10 +54,100 @@ export const xPost = pgTable("x_post", {
   createdAt: time("created_at").notNull().defaultNow(),
   updatedAt: time("updated_at").notNull().defaultNow(),
 });
+export const authUser = pgTable("app_user", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  emailVerified: boolean("email_verified").notNull().default(false),
+  image: text("image"),
+  createdAt: time("created_at").notNull().defaultNow(),
+  updatedAt: time("updated_at").notNull().defaultNow(),
+});
+export const authSession = pgTable(
+  "app_session",
+  {
+    id: text("id").primaryKey(),
+    expiresAt: time("expires_at").notNull(),
+    token: text("token").notNull().unique(),
+    createdAt: time("created_at").notNull().defaultNow(),
+    updatedAt: time("updated_at").notNull().defaultNow(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+  },
+  (t) => [index("app_session_user_id_idx").on(t.userId)],
+);
+export const authAccount = pgTable(
+  "app_account",
+  {
+    id: text("id").primaryKey(),
+    accountId: text("account_id").notNull(),
+    providerId: text("provider_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    idToken: text("id_token"),
+    accessTokenExpiresAt: time("access_token_expires_at"),
+    refreshTokenExpiresAt: time("refresh_token_expires_at"),
+    scope: text("scope"),
+    password: text("password"),
+    createdAt: time("created_at").notNull().defaultNow(),
+    updatedAt: time("updated_at").notNull().defaultNow(),
+  },
+  (t) => [index("app_account_user_id_idx").on(t.userId)],
+);
+export const authVerification = pgTable(
+  "app_verification",
+  {
+    id: text("id").primaryKey(),
+    identifier: text("identifier").notNull(),
+    value: text("value").notNull(),
+    expiresAt: time("expires_at").notNull(),
+    createdAt: time("created_at").notNull().defaultNow(),
+    updatedAt: time("updated_at").notNull().defaultNow(),
+  },
+  (t) => [index("app_verification_identifier_idx").on(t.identifier)],
+);
+export const xAccount = pgTable(
+  "x_account",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").references(() => authUser.id, {
+      onDelete: "cascade",
+    }),
+    xUserId: text("x_user_id"),
+    username: text("username").notNull(),
+    status: xAccountStatusEnum("status").notNull(),
+    encryptionVersion: integer("encryption_version"),
+    nonce: text("nonce"),
+    ciphertext: text("ciphertext"),
+    authTag: text("auth_tag"),
+    createdAt: time("created_at").notNull().defaultNow(),
+    updatedAt: time("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("x_account_user_id_idx").on(t.userId),
+    uniqueIndex("x_account_x_user_id_unique_idx")
+      .on(t.xUserId)
+      .where(sql`${t.xUserId} IS NOT NULL`),
+    check(
+      "x_account_ownership_and_session_state",
+      sql`(${t.status} = 'LEGACY_UNCLAIMED' AND ${t.userId} IS NULL) OR (${t.status} = 'CONNECTED' AND ${t.userId} IS NOT NULL AND ${t.xUserId} IS NOT NULL AND ${t.encryptionVersion} IS NOT NULL AND ${t.nonce} IS NOT NULL AND ${t.ciphertext} IS NOT NULL AND ${t.authTag} IS NOT NULL) OR (${t.status} = 'REAUTH_REQUIRED' AND ${t.userId} IS NOT NULL)`,
+    ),
+  ],
+);
 export const feedRun = pgTable(
   "feed_run",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    xAccountId: text("x_account_id")
+      .notNull()
+      .default("x-primary")
+      .references(() => xAccount.id),
     startedAt: time("started_at").notNull().defaultNow(),
     finishedAt: time("finished_at"),
     status: runStatusEnum("status").notNull().default("RUNNING"),
@@ -61,6 +157,7 @@ export const feedRun = pgTable(
     errorMessage: text("error_message"),
   },
   (t) => [
+    index("feed_run_x_account_started_idx").on(t.xAccountId, t.startedAt),
     check(
       "feed_run_counts_nonnegative",
       sql`${t.targetCount} > 0 AND ${t.collectedCount} >= 0 AND ${t.scrollCount} >= 0`,

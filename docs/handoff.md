@@ -157,27 +157,25 @@ Settings
 ## X Collector
 
 ```text
-Playwright
-Chromium
+Patchright（仅用于用户可见的 X 账号绑定浏览器）
+twitter-monitor 固定版本核心（For You HTTP 采集）
 TypeScript
 ```
 
 运行环境：
 
 ```text
-Vercel Function
+长运行 Collector 服务或专用远程浏览器服务
 ```
 
-Collector 建议仍使用一个非常轻量的 Next.js App Router 项目，以便：
+Collector 保持轻量 Next.js App Router 项目边界，以便统一管理 API 路由和任务入口：
 
 ```text
-Vercel Deployment
-Cron
 Route Handler
 Environment Variables
 ```
 
-统一管理。
+交互式浏览器会话需要跨请求持续存在，不能放入无状态的 Vercel Serverless Function。具体主机/远程浏览器供应商尚未确定。
 
 但 Collector 不负责 Web UI。
 
@@ -218,37 +216,7 @@ Drizzle ORM
 
 ## Authentication State Storage
 
-X 登录态：
-
-```text
-Playwright storageState
-```
-
-生产环境：
-
-```text
-storageState
-    ↓
-AES-GCM encryption
-    ↓
-Vercel Private Blob
-```
-
-Function 执行时：
-
-```text
-Private Blob
-    ↓
-download
-    ↓
-decrypt
-    ↓
-/tmp/x-auth.json
-    ↓
-browser.newContext({
-    storageState
-})
-```
+工具账号由 Better Auth 管理；X 账号会话按 `x_account` 归属，以环境密钥做 AES-GCM 加密后保存到 PostgreSQL。产品目标是服务端托管的隔离远程浏览器；本机 CLI 仅作为现有开发与迁移工具。
 
 不要将 storageState：
 
@@ -270,7 +238,9 @@ storageState 应当被视为账号凭证。
 ```text
 一个 Git Repository
 +
-两个 Vercel Projects
+一个 Web 项目
++
+一个长运行 Collector/Browser 项目
 ```
 
 ---
@@ -316,9 +286,8 @@ apps/collector
 职责：
 
 ```text
-Playwright
-Chromium
-Vercel Cron
+远程账号绑定浏览器
+采集任务
 Jev classification jobs
 ```
 
@@ -2062,3 +2031,13 @@ Phase 4 首个只读切片已开始：Web `/feed` 服务端查询 `x_post` 与 `
 Phase 4 增加 `/dashboard` 与 `/runs` 的只读数据库查询。Dashboard 展示今日 UTC 时间范围内去重观察到的帖子数、已保存帖子总数、采集运行总数、今日已分类帖子主题分布、今日分类状态和最近 5 次采集运行；`/runs` 按开始时间倒序展示最近 50 次运行的状态、目标/实际采集数、滚动次数、耗时及安全错误码。两页缺少 `DATABASE_URL` 或查询失败时展示明确提示，并增加路由级 Skeleton 加载状态。无 schema/migration 或新依赖；不触发采集、分类或 Jev。
 
 当前通过 DB/Web TypeScript 检查、Web lint、Web 生产构建及 `git diff --check`。本次没有执行数据库查询或浏览器视觉检查，因此统计 SQL 的真实数据库运行结果及页面浏览器表现仍待本地联调确认。
+
+## Phase 5-A 工具账号与数据归属（2026-11-15）
+
+用户已确认产品采用服务端托管的远程浏览器完成 X 账号绑定，不要求最终用户安装本地助手。登录凭据由用户直接在可见的 X 浏览器页面中输入；Web 自建表单不接收 X 密码或验证码。远程浏览器服务供应商/部署主机尚未确定，且长连接浏览器会话不适合 Vercel Serverless Function。
+
+本切片引入 Better Auth 邮箱/密码工具账号认证和受保护的 workspace 路由，并新增 `app_user`、`app_session`、`app_account`、`app_verification`、`x_account` 表。X 账号会话字段位于 `x_account`，只允许保存 AES-GCM 密文包。`feed_run` 增加 `x_account_id`；Dashboard、Runs、Feed 的读查询按当前用户拥有的 X 账号过滤。帖子正文仍按 X Post ID 全局去重，但未观察到该帖的其他用户不会从 Feed 查询中看到它。
+
+历史数据被迁移到未认领的 `x-primary` 账号，运行记录继续关联该账号。未认领数据不会展示给新注册用户；后续绑定相同 X 账号时可设计明确的认领规则。新用户注册后会看到空工作区与绑定入口。
+
+注册目前不要求邮箱验证，项目尚未配置邮件发送/密码重置流程；上线前需接入邮件服务并决定验证与找回策略。需要配置服务端 `BETTER_AUTH_SECRET`（至少 32 字符）和 `BETTER_AUTH_URL`。migration `0003_adorable_the_watchers.sql` 已生成但未应用到数据库。此次通过 `pnpm typecheck`；数据库 migration、真实注册/登录、浏览器验收及外部浏览器服务均未验证/实现。

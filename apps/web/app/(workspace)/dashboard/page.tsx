@@ -10,7 +10,7 @@ import {
   LoaderCircle,
   TriangleAlert,
 } from "lucide-react";
-import { getDashboardStats } from "@x-intelligence/db";
+import { getDashboardStats, listXAccountIdsForUser } from "@x-intelligence/db";
 import type { ClassificationStatus, Topic } from "@x-intelligence/shared";
 import { HydrationSafeEffect, HydrationSafeEffects } from "@/components/hydration-safe-effect";
 import { RunStatusBadge } from "@/components/run-status-badge";
@@ -28,6 +28,7 @@ import {
   ProgressLabel,
 } from "@/components/ui/progress";
 import { getWebDatabase } from "@/lib/database";
+import { requireCurrentUser } from "@/lib/auth-session";
 
 export const dynamic = "force-dynamic";
 
@@ -69,7 +70,9 @@ function formatDate(value: Date | null): string {
 }
 
 export default async function DashboardPage() {
+  const user = await requireCurrentUser();
   let stats: Awaited<ReturnType<typeof getDashboardStats>> | null = null;
+  let hasXAccount = false;
   let databaseUnavailable: "configuration" | "query" | null = null;
 
   try {
@@ -77,7 +80,9 @@ export default async function DashboardPage() {
     if (!database) {
       databaseUnavailable = "configuration";
     } else {
-      stats = await getDashboardStats(database.db);
+      const xAccountIds = await listXAccountIdsForUser(database.db, user.id);
+      hasXAccount = xAccountIds.length > 0;
+      stats = await getDashboardStats(database.db, xAccountIds);
     }
   } catch {
     databaseUnavailable = "query";
@@ -137,6 +142,14 @@ export default async function DashboardPage() {
         </Alert>
       ) : stats ? (
         <>
+          {!hasXAccount ? (
+            <Alert>
+              <AlertTitle>先绑定一个 X 账号</AlertTitle>
+              <AlertDescription>
+                当前统计只读取你绑定账号的采集数据。<Link href="/settings/accounts" className="font-medium underline underline-offset-4">前往账号设置</Link>
+              </AlertDescription>
+            </Alert>
+          ) : null}
           <div className="grid gap-4 md:grid-cols-3">
             <HydrationSafeEffects
               asChild

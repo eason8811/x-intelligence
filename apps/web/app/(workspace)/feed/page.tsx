@@ -6,7 +6,7 @@ import {
   type ClassificationTag,
   type Topic,
 } from "@x-intelligence/shared";
-import { listFeedPosts } from "@x-intelligence/db";
+import { listFeedPosts, listXAccountIdsForUser } from "@x-intelligence/db";
 import { FilterPanel, FilterPanelSection } from "@/components/shadcnblocks/filter-panel";
 import { FeedPostLink } from "@/components/feed-post-link";
 import { FeedPostReveal } from "@/components/feed-post-reveal";
@@ -36,6 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getWebDatabase } from "@/lib/database";
+import { requireCurrentUser } from "@/lib/auth-session";
 
 export const dynamic = "force-dynamic";
 
@@ -132,6 +133,7 @@ export default async function FeedPage({
 }: {
   searchParams: SearchParams;
 }) {
+  const user = await requireCurrentUser();
   const params = await searchParams;
   const query = first(params.q).trim().slice(0, 120);
   const topicValue = first(params.topic);
@@ -141,13 +143,16 @@ export default async function FeedPage({
   const tag = isTag(tagValue) ? tagValue : undefined;
   const period = PERIODS.find((value) => value === periodValue) ?? "all";
   let posts: Awaited<ReturnType<typeof listFeedPosts>> | null = null;
+  let hasXAccount = false;
   let unavailable = false;
   try {
     const database = getWebDatabase();
     if (!database) {
       unavailable = true;
     } else {
-      posts = await listFeedPosts(database.db, {
+      const xAccountIds = await listXAccountIdsForUser(database.db, user.id);
+      hasXAccount = xAccountIds.length > 0;
+      posts = await listFeedPosts(database.db, xAccountIds, {
         topic,
         tag,
         search: query,
@@ -417,6 +422,20 @@ export default async function FeedPage({
             );
           })}
         </div>
+      ) : !hasXAccount ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>还没有绑定 X 账号</CardTitle>
+            <CardDescription>
+              绑定后采集的帖子只会出现在你的信息流中。
+            </CardDescription>
+          </CardHeader>
+          <CardFooter>
+            <Button variant="outline" asChild>
+              <Link href="/settings/accounts">前往账号设置</Link>
+            </Button>
+          </CardFooter>
+        </Card>
       ) : (
         <Card>
           <CardHeader>

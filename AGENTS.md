@@ -10,14 +10,14 @@
 
 ## 当前范围
 
-当前授权任务：使用 Patchright 启动本机已安装的 Google Chrome 进行可见人工登录，并把登录后的浏览器会话以 AES-GCM 加密形式保存到 PostgreSQL。不得将登录密码、验证码或未加密会话状态写入日志或数据库。
+当前阶段：实现工具账号认证、按已绑定 X 账号隔离数据，并继续接入用户明确授权的服务端远程浏览器绑定流程。远程浏览器必须由用户在页面中可见操作；不得将登录密码、验证码或未加密会话状态写入日志或数据库。
 
 - 使用 pnpm、Turborepo、TypeScript strict。
 - 保持 `apps/web`、`apps/collector` 和四个共享 package 的边界，不继续拆分 package。
 - Web 使用 Next.js App Router、Tailwind CSS v4、shadcn/ui；使用 Base UI primitives 与 preset `b3REvH1Um`，并按下列约束使用 Animate UI；优先 Server Components。
-- Collector 使用轻量 Next.js API 应用，不负责 Web UI。
+- Collector 使用轻量 Next.js API 应用，不负责 Web UI。交互式远程浏览器需要持续连接，因此必须运行在长运行服务或专用远程浏览器服务中，不能把有状态的浏览器交互放入 Vercel Serverless Function；实际部署平台尚未确定。
 - 数据库使用 PostgreSQL、Neon、Drizzle；Schema 修改同步 migration。
-- Phase 1 不实现真实 X 采集、Jev 接入、生产 Cron 或 Private Blob 配置。
+- 下一步完成服务端远程浏览器绑定和按 X 账号运行采集；选定长运行部署目标前不启用生产调度。
 
 ## 实现约束
 
@@ -27,7 +27,8 @@
 - Post 插入幂等，数据库时间统一 UTC，页面按用户时区展示。
 - 分类记录保存实际 classifier 和版本；业务层通过分类接口隔离第三方 SDK。
 - 不吞异常，不大量使用 any；新增依赖前说明用途。
-- Patchright 仅按本次用户明确要求用于本地人工登录；这是针对登录入口的窄范围例外，不扩展为代理轮换、验证码绕过、额外指纹伪装或采集链路的反 Bot 绕过。
+- Patchright 仅用于用户可见、隔离的 X 账号绑定浏览器会话；用户不安装本地助手。该授权不扩展为代理轮换、验证码绕过、额外指纹伪装或采集链路的反 Bot 绕过。
+- 工具账号认证使用 Better Auth；所有展示查询必须验证当前用户，并通过其 `x_account` ID 过滤运行和信息流。`x_post` 可以按 X Post ID 全局去重，但不得因此向用户展示其账号未观察到的帖子。
 - storageState 视为账号凭证，不提交 Git、不公开发布、不明文存数据库；写入 PostgreSQL 前必须用环境密钥做应用层 AES-GCM 加密。
 - Secret 不使用 NEXT_PUBLIC_；Cron 接口验证 CRON_SECRET。
 - 不引入文档排除的消息队列、微服务、向量数据库或额外 AI 能力。
@@ -62,3 +63,11 @@
 ## Patchright 人工登录与数据库加密存储修订（2026-11-10）
 
 用户明确要求推翻 JP-5 HTTP 编排，改用 Patchright 启动本机已安装的 Google Chrome，由用户手动完成登录。会话从隔离的临时浏览器上下文获取，校验 x.com 首页以及 auth_token/ct0 后，以 AES-256-GCM 加密完整 storageState，再写入 `x_auth_session`；加密密钥仅来自本地/部署环境变量 `X_AUTH_ENCRYPTION_KEY`。登录密码和验证码不经 CLI 收集，不保存 HAR、请求正文或请求头快照。Patchright 的自动化检测补丁仅用于此人工登录入口，其他反 Bot 绕过仍禁止。当前配置的 `DATABASE_URL` 已成功应用新增 migration；真实 X 登录与会话复用仍待授权账号验证。
+
+## 服务端远程浏览器与多用户账号方向修订（2026-11-15）
+
+用户已明确选择由服务端托管隔离浏览器完成 X 账号绑定，不要求最终用户安装 Node.js、Patchright 或本地助手。用户在 Web 页面中直接操作远程浏览器；应用不得把密码或验证码写入日志/数据库，成功后仅持久化按 `x_account` 隔离、AES-GCM 加密的浏览器会话。此决定取代“绑定必须由访问者电脑启动本机 Chrome”的范围，但不允许把凭据放入自建表单或扩展为自动绕过挑战。
+
+当前部署文档中的 Vercel Serverless Collector 与交互式远程浏览器存在运行时冲突。浏览器绑定需要持续连接，因此 Collector 应部署在长运行服务或专用远程浏览器服务中；具体供应商尚未选择，也尚未实现。
+
+Phase 5-A 已开始：工具账号由 Better Auth 提供邮箱/密码认证；新增 `app_user`/session 等表及 `x_account` 归属模型；Dashboard、Feed、Runs 查询按当前用户拥有的 X 账号过滤。未认领的旧 `x-primary` 数据仍保留但不会暴露给新用户。远程浏览器绑定界面与采集任务按账号运行尚未实现。

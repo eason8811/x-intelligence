@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, Clock3, ListChecks } from "lucide-react";
-import { listFeedRuns } from "@x-intelligence/db";
+import { listFeedRuns, listXAccountIdsForUser } from "@x-intelligence/db";
 import { HydrationSafeEffects } from "@/components/hydration-safe-effect";
 import { RunStatusBadge } from "@/components/run-status-badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -13,6 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { getWebDatabase } from "@/lib/database";
+import { requireCurrentUser } from "@/lib/auth-session";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +41,9 @@ function formatDuration(startedAt: Date, finishedAt: Date | null): string {
 }
 
 export default async function RunsPage() {
+  const user = await requireCurrentUser();
   let runs: Awaited<ReturnType<typeof listFeedRuns>> | null = null;
+  let hasXAccount = false;
   let databaseUnavailable: "configuration" | "query" | null = null;
 
   try {
@@ -48,7 +51,9 @@ export default async function RunsPage() {
     if (!database) {
       databaseUnavailable = "configuration";
     } else {
-      runs = await listFeedRuns(database.db, RUNS_LIMIT);
+      const xAccountIds = await listXAccountIdsForUser(database.db, user.id);
+      hasXAccount = xAccountIds.length > 0;
+      runs = await listFeedRuns(database.db, xAccountIds, RUNS_LIMIT);
     }
   } catch {
     databaseUnavailable = "query";
@@ -150,6 +155,23 @@ export default async function RunsPage() {
             ))}
           </HydrationSafeEffects>
         </div>
+      ) : runs && !hasXAccount ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>尚未绑定 X 账号</CardTitle>
+            <CardDescription>
+              绑定账号后，这里会显示该账号对应的采集运行记录。
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button variant="outline" asChild>
+              <Link href="/settings/accounts">
+                绑定 X 账号
+                <ArrowRight data-icon="inline-end" />
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
       ) : runs ? (
         <Card>
           <CardHeader>

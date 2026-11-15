@@ -7,6 +7,7 @@ import {
   Activity,
   LayoutDashboard,
   Newspaper,
+  Settings2,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -17,6 +18,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
+import { SignOutButton } from "@/components/sign-out-button";
 import {
   Sidebar,
   SidebarContent,
@@ -44,6 +46,7 @@ const navigation: NavigationItem[] = [
   { label: "概览", href: "/dashboard", icon: LayoutDashboard },
   { label: "信息流", href: "/feed", icon: Newspaper },
   { label: "采集记录", href: "/runs", icon: Activity },
+  { label: "X 账号", href: "/settings/accounts", icon: Settings2 },
 ];
 
 function SidebarBrand() {
@@ -66,7 +69,7 @@ function SidebarBrand() {
   );
 }
 
-function AppSidebar({ pathname }: { pathname: string }) {
+function AppSidebar({ pathname, userEmail }: { pathname: string; userEmail: string }) {
   return (
     <Sidebar collapsible="icon" variant="inset">
       <SidebarHeader>
@@ -98,8 +101,11 @@ function AppSidebar({ pathname }: { pathname: string }) {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
-        <div className="rounded-md border bg-background/60 p-3 text-xs leading-5 text-muted-foreground group-data-[collapsible=icon]:hidden">
-          已采集内容与分类结果会显示在信息流中。
+        <div className="flex flex-col gap-2 rounded-md border bg-background/60 p-3 group-data-[collapsible=icon]:hidden">
+          <p className="truncate text-xs text-muted-foreground" title={userEmail}>
+            {userEmail}
+          </p>
+          <SignOutButton />
         </div>
       </SidebarFooter>
       <SidebarRail />
@@ -111,13 +117,13 @@ function currentPage(pathname: string): string {
   return navigation.find((item) => item.href === pathname)?.label ?? "工作区";
 }
 
-function Sidebar1({ children }: { children: ReactNode }) {
+function Sidebar1({ children, userEmail }: { children: ReactNode; userEmail: string }) {
   const pathname = usePathname();
   const page = currentPage(pathname);
 
   return (
     <SidebarProvider className="min-h-svh bg-background">
-      <AppSidebar pathname={pathname} />
+      <AppSidebar pathname={pathname} userEmail={userEmail} />
       <SidebarInset className="min-h-svh bg-background">
         <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur supports-backdrop-filter:bg-background/80 sm:px-6">
           <SidebarTrigger aria-label="切换侧边栏" className="-ml-1" />

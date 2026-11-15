@@ -49,10 +49,44 @@ export interface FeedQueryOptions {
   limit?: number;
 }
 
-export async function listFeedRuns(db: DatabaseClient, limit = 50) {
+export async function listXAccountsForUser(
+  db: DatabaseClient,
+  userId: string,
+) {
+  return db
+    .select({
+      id: schema.xAccount.id,
+      xUserId: schema.xAccount.xUserId,
+      username: schema.xAccount.username,
+      status: schema.xAccount.status,
+      createdAt: schema.xAccount.createdAt,
+      updatedAt: schema.xAccount.updatedAt,
+    })
+    .from(schema.xAccount)
+    .where(eq(schema.xAccount.userId, userId))
+    .orderBy(asc(schema.xAccount.createdAt));
+}
+
+export async function listXAccountIdsForUser(
+  db: DatabaseClient,
+  userId: string,
+): Promise<string[]> {
+  const accounts = await db
+    .select({ id: schema.xAccount.id })
+    .from(schema.xAccount)
+    .where(eq(schema.xAccount.userId, userId));
+  return accounts.map(({ id }) => id);
+}
+
+export async function listFeedRuns(
+  db: DatabaseClient,
+  xAccountIds: string[],
+  limit = 50,
+) {
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
     throw new RangeError("limit must be an integer from 1 to 100");
   }
+  if (xAccountIds.length === 0) return [];
 
   return db
     .select({
@@ -66,24 +100,58 @@ export async function listFeedRuns(db: DatabaseClient, limit = 50) {
       errorMessage: schema.feedRun.errorMessage,
     })
     .from(schema.feedRun)
+    .where(inArray(schema.feedRun.xAccountId, xAccountIds))
     .orderBy(desc(schema.feedRun.startedAt))
     .limit(limit);
 }
 
-export async function getDashboardStats(db: DatabaseClient) {
+export async function getDashboardStats(
+  db: DatabaseClient,
+  xAccountIds: string[],
+) {
+  if (xAccountIds.length === 0) {
+    return {
+      todayPostCount: 0,
+      totalPostCount: 0,
+      totalRunCount: 0,
+      todayTopicDistribution: [],
+      todayClassificationCounts: {
+        PENDING: 0,
+        PROCESSING: 0,
+        CLASSIFIED: 0,
+        FAILED: 0,
+      },
+      recentRuns: [],
+    };
+  }
+
   // Dashboard's daily figures use UTC boundaries, matching the database time policy.
   const utcDayStart = sql`(date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC')`;
   const utcDayEnd = sql`${utcDayStart} + interval '1 day'`;
   const todayObservedPosts = db
     .selectDistinct({ postId: schema.feedObservation.postId })
     .from(schema.feedObservation)
+    .innerJoin(
+      schema.feedRun,
+      eq(schema.feedRun.id, schema.feedObservation.runId),
+    )
     .where(
       and(
+        inArray(schema.feedRun.xAccountId, xAccountIds),
         gte(schema.feedObservation.observedAt, utcDayStart),
         lt(schema.feedObservation.observedAt, utcDayEnd),
       ),
     )
     .as("today_observed_posts");
+  const accountObservedPosts = db
+    .selectDistinct({ postId: schema.feedObservation.postId })
+    .from(schema.feedObservation)
+    .innerJoin(
+      schema.feedRun,
+      eq(schema.feedRun.id, schema.feedObservation.runId),
+    )
+    .where(inArray(schema.feedRun.xAccountId, xAccountIds))
+    .as("account_observed_posts");
 
   const [todayCountRows, topicRows, statusRows, totalPostRows, totalRunRows, recentRuns] =
     await Promise.all([
@@ -115,11 +183,12 @@ export async function getDashboardStats(db: DatabaseClient) {
         .groupBy(schema.postClassification.status),
       db
         .select({ count: sql<number>`count(*)`.mapWith(Number) })
-        .from(schema.xPost),
+        .from(accountObservedPosts),
       db
         .select({ count: sql<number>`count(*)`.mapWith(Number) })
-        .from(schema.feedRun),
-      listFeedRuns(db, 5),
+        .from(schema.feedRun)
+        .where(inArray(schema.feedRun.xAccountId, xAccountIds)),
+      listFeedRuns(db, xAccountIds, 5),
     ]);
 
   const topicCounts = new Map(
@@ -154,12 +223,14 @@ export async function getDashboardStats(db: DatabaseClient) {
 
 export async function listFeedPosts(
   db: DatabaseClient,
+  xAccountIds: string[],
   options: FeedQueryOptions = {},
 ) {
   const limit = options.limit ?? 50;
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
     throw new RangeError("limit must be an integer from 1 to 100");
   }
+  if (xAccountIds.length === 0) return [];
 
   const filters: SQL[] = [];
   if (options.topic) {
@@ -202,6 +273,11 @@ export async function listFeedPosts(
       ),
     })
     .from(schema.feedObservation)
+    .innerJoin(
+      schema.feedRun,
+      eq(schema.feedRun.id, schema.feedObservation.runId),
+    )
+    .where(inArray(schema.feedRun.xAccountId, xAccountIds))
     .groupBy(schema.feedObservation.postId)
     .as("latest_observation");
 
@@ -227,7 +303,7 @@ export async function listFeedPosts(
       schema.postClassification,
       eq(schema.postClassification.postId, schema.xPost.id),
     )
-    .leftJoin(
+    .innerJoin(
       latestObservation,
       eq(latestObservation.postId, schema.xPost.id),
     )
@@ -243,13 +319,14 @@ export async function listFeedPosts(
 export async function beginFeedRun(
   db: DatabaseClient,
   targetCount: number,
+  xAccountId = "x-primary",
 ): Promise<string> {
   if (!Number.isInteger(targetCount) || targetCount < 1) {
     throw new RangeError("targetCount must be a positive integer");
   }
   const [run] = await db
     .insert(schema.feedRun)
-    .values({ targetCount })
+    .values({ targetCount, xAccountId })
     .returning({ id: schema.feedRun.id });
   if (!run) throw new Error("FEED_RUN_CREATE_FAILED");
   return run.id;
