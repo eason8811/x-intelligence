@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -104,15 +103,6 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
         {pending ? "请稍候…" : isRegister ? "创建账号" : "登录"}
       </Button>
 
-      <p className="text-center text-sm text-muted-foreground">
-        {isRegister ? "已有账号？" : "还没有账号？"}{" "}
-        <Link
-          href={isRegister ? "/login" : "/register"}
-          className="font-medium text-foreground underline underline-offset-4"
-        >
-          {isRegister ? "返回登录" : "创建账号"}
-        </Link>
-      </p>
     </form>
   );
 }
