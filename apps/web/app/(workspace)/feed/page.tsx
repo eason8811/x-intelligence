@@ -1,5 +1,4 @@
 import Image from "next/image";
-import Link from "next/link";
 import {
   CLASSIFICATION_TAGS,
   TOPICS,
@@ -10,6 +9,8 @@ import { listFeedPosts, listXAccountIdsForUser } from "@x-intelligence/db";
 import { FilterPanel, FilterPanelSection } from "@/components/shadcnblocks/filter-panel";
 import { FeedPostLink } from "@/components/feed-post-link";
 import { FeedPostReveal } from "@/components/feed-post-reveal";
+import { HydrationSafeEffect } from "@/components/hydration-safe-effect";
+import { NavigationButton } from "@/components/navigation-button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -166,144 +167,169 @@ export default async function FeedPage({
 
   return (
     <section className="space-y-7">
-      <header className="flex flex-wrap items-end justify-between gap-5">
-        <div className="max-w-2xl space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-            X Intelligence / For You
-          </p>
-          <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-            信息流
-          </h1>
-          <p className="text-sm leading-6 text-muted-foreground">
-            最近采集的推荐内容，按主题、标签和相关性整理。
-          </p>
-        </div>
-        <Card size="sm" className="min-w-32 gap-0">
-          <CardContent className="gap-1 py-4">
-            <p className="text-xs text-muted-foreground">当前结果</p>
-            <p className="text-2xl font-semibold tabular-nums">
-              {unavailable ? "—" : (posts?.length ?? 0)}
-              <span className="ml-1 text-xs font-normal text-muted-foreground">
-                / 50
-              </span>
+      <HydrationSafeEffect
+        asChild
+        inView
+        fade
+        slide={{ direction: "up", offset: 12 }}
+        blur={{ initialBlur: 2 }}
+      >
+        <header className="flex flex-wrap items-end justify-between gap-5">
+          <div className="max-w-2xl space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              X Intelligence / For You
             </p>
+            <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+              信息流
+            </h1>
+            <p className="text-sm leading-6 text-muted-foreground">
+              最近采集的推荐内容，按主题、标签和相关性整理。
+            </p>
+          </div>
+          <Card size="sm" className="min-w-32 gap-0">
+            <CardContent className="gap-1 py-4">
+              <p className="text-xs text-muted-foreground">当前结果</p>
+              <p className="text-2xl font-semibold tabular-nums">
+                {unavailable ? "—" : (posts?.length ?? 0)}
+                <span className="ml-1 text-xs font-normal text-muted-foreground">
+                  / 50
+                </span>
+              </p>
+            </CardContent>
+          </Card>
+        </header>
+      </HydrationSafeEffect>
+
+      <HydrationSafeEffect
+        asChild
+        inView
+        fade
+        slide={{ direction: "up", offset: 12 }}
+        blur={{ initialBlur: 2 }}
+        delay={60}
+      >
+        <Card>
+          <CardHeader className="gap-1 pb-0">
+            <CardTitle className="text-base">筛选帖子</CardTitle>
+            <CardDescription>输入关键词，再按主题、标签或时间缩小范围。</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form action="/feed" method="get" className="space-y-5">
+              <Field>
+                <FieldLabel htmlFor="feed-search">搜索正文或作者</FieldLabel>
+                <Input
+                  id="feed-search"
+                  type="search"
+                  name="q"
+                  maxLength={120}
+                  defaultValue={query}
+                  placeholder="输入关键词"
+                />
+              </Field>
+
+              <FilterPanel className="grid gap-x-5 gap-y-4 md:grid-cols-3">
+                <FilterPanelSection title="主题" className="gap-2 pb-0">
+                  <Select
+                    name="topic"
+                    defaultValue={topic ?? "all"}
+                    items={[
+                      { value: "all", label: "全部主题" },
+                      ...TOPICS.map((value) => ({
+                        value,
+                        label: TOPIC_LABELS[value],
+                      })),
+                    ]}
+                  >
+                    <SelectTrigger className="w-full" aria-label="主题">
+                      <SelectValue placeholder="全部主题" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">全部主题</SelectItem>
+                      {TOPICS.map((value) => (
+                        <SelectItem key={value} value={value}>
+                          {TOPIC_LABELS[value]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FilterPanelSection>
+
+                <FilterPanelSection title="标签" className="gap-2 pb-0">
+                  <Select
+                    name="tag"
+                    defaultValue={tag ?? "all"}
+                    items={[
+                      { value: "all", label: "全部标签" },
+                      ...CLASSIFICATION_TAGS.map((value) => ({
+                        value,
+                        label: TAG_LABELS[value],
+                      })),
+                    ]}
+                  >
+                    <SelectTrigger className="w-full" aria-label="标签">
+                      <SelectValue placeholder="全部标签" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">全部标签</SelectItem>
+                      {CLASSIFICATION_TAGS.map((value) => (
+                        <SelectItem key={value} value={value}>
+                          {TAG_LABELS[value]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FilterPanelSection>
+
+                <FilterPanelSection title="时间范围" className="gap-2 pb-0">
+                  <Select
+                    name="period"
+                    defaultValue={period}
+                    items={[
+                      { value: "all", label: "全部时间" },
+                      { value: "day", label: "最近 24 小时" },
+                      { value: "week", label: "最近 7 天" },
+                      { value: "month", label: "最近 30 天" },
+                    ]}
+                  >
+                    <SelectTrigger className="w-full" aria-label="时间范围">
+                      <SelectValue placeholder="全部时间" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">全部时间</SelectItem>
+                      <SelectItem value="day">最近 24 小时</SelectItem>
+                      <SelectItem value="week">最近 7 天</SelectItem>
+                      <SelectItem value="month">最近 30 天</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </FilterPanelSection>
+              </FilterPanel>
+
+              <div className="flex flex-wrap items-center gap-2 border-t pt-4">
+                <Button type="submit">应用筛选</Button>
+                <NavigationButton href="/feed" variant="ghost">
+                  清除条件
+                </NavigationButton>
+              </div>
+            </form>
           </CardContent>
         </Card>
-      </header>
-
-      <Card>
-        <CardHeader className="gap-1 pb-0">
-          <CardTitle className="text-base">筛选帖子</CardTitle>
-          <CardDescription>输入关键词，再按主题、标签或时间缩小范围。</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form action="/feed" method="get" className="space-y-5">
-            <Field>
-              <FieldLabel htmlFor="feed-search">搜索正文或作者</FieldLabel>
-              <Input
-                id="feed-search"
-                type="search"
-                name="q"
-                maxLength={120}
-                defaultValue={query}
-                placeholder="输入关键词"
-              />
-            </Field>
-
-            <FilterPanel className="grid gap-x-5 gap-y-4 md:grid-cols-3">
-              <FilterPanelSection title="主题" className="gap-2 pb-0">
-                <Select
-                  name="topic"
-                  defaultValue={topic ?? "all"}
-                  items={[
-                    { value: "all", label: "全部主题" },
-                    ...TOPICS.map((value) => ({
-                      value,
-                      label: TOPIC_LABELS[value],
-                    })),
-                  ]}
-                >
-                  <SelectTrigger className="w-full" aria-label="主题">
-                    <SelectValue placeholder="全部主题" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">全部主题</SelectItem>
-                    {TOPICS.map((value) => (
-                      <SelectItem key={value} value={value}>
-                        {TOPIC_LABELS[value]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </FilterPanelSection>
-
-              <FilterPanelSection title="标签" className="gap-2 pb-0">
-                <Select
-                  name="tag"
-                  defaultValue={tag ?? "all"}
-                  items={[
-                    { value: "all", label: "全部标签" },
-                    ...CLASSIFICATION_TAGS.map((value) => ({
-                      value,
-                      label: TAG_LABELS[value],
-                    })),
-                  ]}
-                >
-                  <SelectTrigger className="w-full" aria-label="标签">
-                    <SelectValue placeholder="全部标签" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">全部标签</SelectItem>
-                    {CLASSIFICATION_TAGS.map((value) => (
-                      <SelectItem key={value} value={value}>
-                        {TAG_LABELS[value]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </FilterPanelSection>
-
-              <FilterPanelSection title="时间范围" className="gap-2 pb-0">
-                <Select
-                  name="period"
-                  defaultValue={period}
-                  items={[
-                    { value: "all", label: "全部时间" },
-                    { value: "day", label: "最近 24 小时" },
-                    { value: "week", label: "最近 7 天" },
-                    { value: "month", label: "最近 30 天" },
-                  ]}
-                >
-                  <SelectTrigger className="w-full" aria-label="时间范围">
-                    <SelectValue placeholder="全部时间" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">全部时间</SelectItem>
-                    <SelectItem value="day">最近 24 小时</SelectItem>
-                    <SelectItem value="week">最近 7 天</SelectItem>
-                    <SelectItem value="month">最近 30 天</SelectItem>
-                  </SelectContent>
-                </Select>
-              </FilterPanelSection>
-            </FilterPanel>
-
-            <div className="flex flex-wrap items-center gap-2 border-t pt-4">
-              <Button type="submit">应用筛选</Button>
-              <Button variant="ghost" asChild>
-                <Link href="/feed">清除条件</Link>
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+      </HydrationSafeEffect>
 
       {unavailable ? (
-        <Alert>
-          <AlertTitle>暂时无法读取信息流</AlertTitle>
-          <AlertDescription>
-            请检查服务端数据库连接配置和 PostgreSQL 是否可用。
-          </AlertDescription>
-        </Alert>
+        <HydrationSafeEffect
+          asChild
+          inView
+          fade
+          slide={{ direction: "up", offset: 12 }}
+          blur={{ initialBlur: 2 }}
+        >
+          <Alert>
+            <AlertTitle>暂时无法读取信息流</AlertTitle>
+            <AlertDescription>
+              请检查服务端数据库连接配置和 PostgreSQL 是否可用。
+            </AlertDescription>
+          </Alert>
+        </HydrationSafeEffect>
       ) : posts?.length ? (
         <div className="space-y-4">
           {posts.map((post) => {
@@ -423,33 +449,49 @@ export default async function FeedPage({
           })}
         </div>
       ) : !hasXAccount ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>还没有绑定 X 账号</CardTitle>
-            <CardDescription>
-              绑定后采集的帖子只会出现在你的信息流中。
-            </CardDescription>
-          </CardHeader>
-          <CardFooter>
-            <Button variant="outline" asChild>
-              <Link href="/settings/accounts">前往账号设置</Link>
-            </Button>
-          </CardFooter>
-        </Card>
+        <HydrationSafeEffect
+          asChild
+          inView
+          fade
+          slide={{ direction: "up", offset: 12 }}
+          blur={{ initialBlur: 2 }}
+        >
+          <Card>
+            <CardHeader>
+              <CardTitle>还没有绑定 X 账号</CardTitle>
+              <CardDescription>
+                绑定后采集的帖子只会出现在你的信息流中。
+              </CardDescription>
+            </CardHeader>
+            <CardFooter>
+              <NavigationButton href="/settings/accounts" variant="outline">
+                前往账号设置
+              </NavigationButton>
+            </CardFooter>
+          </Card>
+        </HydrationSafeEffect>
       ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>没有符合条件的帖子</CardTitle>
-            <CardDescription>
-              可以清除筛选条件，或先运行一次采集和分类。
-            </CardDescription>
-          </CardHeader>
-          <CardFooter>
-            <Button variant="outline" asChild>
-              <Link href="/feed">清除筛选条件</Link>
-            </Button>
-          </CardFooter>
-        </Card>
+        <HydrationSafeEffect
+          asChild
+          inView
+          fade
+          slide={{ direction: "up", offset: 12 }}
+          blur={{ initialBlur: 2 }}
+        >
+          <Card>
+            <CardHeader>
+              <CardTitle>没有符合条件的帖子</CardTitle>
+              <CardDescription>
+                可以清除筛选条件，或先运行一次采集和分类。
+              </CardDescription>
+            </CardHeader>
+            <CardFooter>
+              <NavigationButton href="/feed" variant="outline">
+                清除筛选条件
+              </NavigationButton>
+            </CardFooter>
+          </Card>
+        </HydrationSafeEffect>
       )}
     </section>
   );

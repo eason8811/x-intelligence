@@ -13,9 +13,9 @@ import {
 import { getDashboardStats, listXAccountIdsForUser } from "@x-intelligence/db";
 import type { ClassificationStatus, Topic } from "@x-intelligence/shared";
 import { HydrationSafeEffect, HydrationSafeEffects } from "@/components/hydration-safe-effect";
+import { NavigationButton } from "@/components/navigation-button";
 import { RunStatusBadge } from "@/components/run-status-badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -112,18 +112,14 @@ export default async function DashboardPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" asChild>
-            <Link href="/feed">
-              浏览信息流
-              <ArrowRight aria-hidden="true" />
-            </Link>
-          </Button>
-          <Button variant="outline" asChild>
-            <Link href="/runs">
-              采集记录
-              <ListChecks aria-hidden="true" />
-            </Link>
-          </Button>
+          <NavigationButton href="/feed" variant="outline">
+            浏览信息流
+            <ArrowRight aria-hidden="true" />
+          </NavigationButton>
+          <NavigationButton href="/runs" variant="outline">
+            采集记录
+            <ListChecks aria-hidden="true" />
+          </NavigationButton>
         </div>
       </header>
 
@@ -334,12 +330,10 @@ export default async function DashboardPage() {
                   <CardTitle>最近采集运行</CardTitle>
                   <CardDescription>按开始时间倒序显示最近 5 次运行</CardDescription>
                 </div>
-                <Button variant="ghost" asChild>
-                  <Link href="/runs">
-                    查看全部
-                    <ArrowRight aria-hidden="true" />
-                  </Link>
-                </Button>
+                <NavigationButton href="/runs" variant="ghost">
+                  查看全部
+                  <ArrowRight aria-hidden="true" />
+                </NavigationButton>
               </CardHeader>
               {stats.recentRuns.length ? (
                 <CardContent className="gap-0">

@@ -1,10 +1,12 @@
-import Link from "next/link";
 import { ArrowRight, Clock3, ListChecks } from "lucide-react";
 import { listFeedRuns, listXAccountIdsForUser } from "@x-intelligence/db";
-import { HydrationSafeEffects } from "@/components/hydration-safe-effect";
+import {
+  HydrationSafeEffect,
+  HydrationSafeEffects,
+} from "@/components/hydration-safe-effect";
+import { NavigationButton } from "@/components/navigation-button";
 import { RunStatusBadge } from "@/components/run-status-badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -61,36 +63,52 @@ export default async function RunsPage() {
 
   return (
     <section className="space-y-7">
-      <header className="flex flex-wrap items-end justify-between gap-5">
-        <div className="max-w-2xl space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-            X Intelligence / Operations
-          </p>
-          <h1 className="text-3xl font-semibold tracking-tight text-balance">
-            采集记录
-          </h1>
-          <p className="text-sm leading-6 text-muted-foreground">
-            查看最近 {RUNS_LIMIT} 次采集任务的状态、采集数量和安全错误码。
-          </p>
-        </div>
-        <span className="flex size-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <ListChecks className="size-5" aria-hidden="true" />
-        </span>
-      </header>
+      <HydrationSafeEffect
+        asChild
+        inView
+        fade
+        slide={{ direction: "up", offset: 12 }}
+        blur={{ initialBlur: 2 }}
+      >
+        <header className="flex flex-wrap items-end justify-between gap-5">
+          <div className="max-w-2xl space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              X Intelligence / Operations
+            </p>
+            <h1 className="text-3xl font-semibold tracking-tight text-balance">
+              采集记录
+            </h1>
+            <p className="text-sm leading-6 text-muted-foreground">
+              查看最近 {RUNS_LIMIT} 次采集任务的状态、采集数量和安全错误码。
+            </p>
+          </div>
+          <span className="flex size-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <ListChecks className="size-5" aria-hidden="true" />
+          </span>
+        </header>
+      </HydrationSafeEffect>
 
       {databaseUnavailable ? (
-        <Alert variant="destructive">
-          <AlertTitle>
-            {databaseUnavailable === "configuration"
-              ? "尚未配置数据库连接"
-              : "暂时无法读取采集记录"}
-          </AlertTitle>
-          <AlertDescription>
-            {databaseUnavailable === "configuration"
-              ? "请在 Web 服务端配置 DATABASE_URL。"
-              : "请检查服务端数据库连接和 PostgreSQL 状态后重试。"}
-          </AlertDescription>
-        </Alert>
+        <HydrationSafeEffect
+          asChild
+          inView
+          fade
+          slide={{ direction: "up", offset: 12 }}
+          blur={{ initialBlur: 2 }}
+        >
+          <Alert variant="destructive">
+            <AlertTitle>
+              {databaseUnavailable === "configuration"
+                ? "尚未配置数据库连接"
+                : "暂时无法读取采集记录"}
+            </AlertTitle>
+            <AlertDescription>
+              {databaseUnavailable === "configuration"
+                ? "请在 Web 服务端配置 DATABASE_URL。"
+                : "请检查服务端数据库连接和 PostgreSQL 状态后重试。"}
+            </AlertDescription>
+          </Alert>
+        </HydrationSafeEffect>
       ) : runs?.length ? (
         <div className="space-y-4">
           <HydrationSafeEffects
@@ -156,39 +174,51 @@ export default async function RunsPage() {
           </HydrationSafeEffects>
         </div>
       ) : runs && !hasXAccount ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>尚未绑定 X 账号</CardTitle>
-            <CardDescription>
-              绑定账号后，这里会显示该账号对应的采集运行记录。
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button variant="outline" asChild>
-              <Link href="/settings/accounts">
+        <HydrationSafeEffect
+          asChild
+          inView
+          fade
+          slide={{ direction: "up", offset: 12 }}
+          blur={{ initialBlur: 2 }}
+        >
+          <Card>
+            <CardHeader>
+              <CardTitle>尚未绑定 X 账号</CardTitle>
+              <CardDescription>
+                绑定账号后，这里会显示该账号对应的采集运行记录。
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <NavigationButton href="/settings/accounts" variant="outline">
                 绑定 X 账号
                 <ArrowRight data-icon="inline-end" />
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
+              </NavigationButton>
+            </CardContent>
+          </Card>
+        </HydrationSafeEffect>
       ) : runs ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>还没有采集运行记录</CardTitle>
-            <CardDescription>
-              运行采集任务后，状态和采集数量会显示在这里。
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button variant="outline" asChild>
-              <Link href="/feed">
+        <HydrationSafeEffect
+          asChild
+          inView
+          fade
+          slide={{ direction: "up", offset: 12 }}
+          blur={{ initialBlur: 2 }}
+        >
+          <Card>
+            <CardHeader>
+              <CardTitle>还没有采集运行记录</CardTitle>
+              <CardDescription>
+                运行采集任务后，状态和采集数量会显示在这里。
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <NavigationButton href="/feed" variant="outline">
                 前往信息流
                 <ArrowRight aria-hidden="true" />
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
+              </NavigationButton>
+            </CardContent>
+          </Card>
+        </HydrationSafeEffect>
       ) : null}
     </section>
   );

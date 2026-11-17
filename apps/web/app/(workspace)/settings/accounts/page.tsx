@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { ArrowLeft, Link2 } from "lucide-react";
 import { listXAccountsForUser } from "@x-intelligence/db";
 import { HydrationSafeEffect, HydrationSafeEffects } from "@/components/hydration-safe-effect";
+import { NavigationButton } from "@/components/navigation-button";
 import { requireCurrentUser } from "@/lib/auth-session";
 import { getWebDatabase } from "@/lib/database";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -43,12 +43,10 @@ export default async function XAccountsPage() {
               管理用于采集 For You 信息流的 X 账号。登录凭据只会在绑定时临时经过浏览器。
             </p>
           </div>
-          <Button variant="outline" asChild>
-            <Link href="/dashboard">
-              <ArrowLeft data-icon="inline-start" />
-              返回概览
-            </Link>
-          </Button>
+          <NavigationButton href="/dashboard" variant="outline">
+            <ArrowLeft data-icon="inline-start" />
+            返回概览
+          </NavigationButton>
         </header>
       </HydrationSafeEffect>
 
