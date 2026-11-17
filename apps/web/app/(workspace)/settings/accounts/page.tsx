@@ -1,12 +1,10 @@
-import { ArrowLeft, Link2 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { listXAccountsForUser } from "@x-intelligence/db";
 import { HydrationSafeEffect, HydrationSafeEffects } from "@/components/hydration-safe-effect";
 import { NavigationButton } from "@/components/navigation-button";
 import { requireCurrentUser } from "@/lib/auth-session";
 import { getWebDatabase } from "@/lib/database";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -14,6 +12,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { XAccountBinding } from "@/components/x-account-binding";
+import { XAccountCollectButton } from "@/components/x-account-collect-button";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +50,26 @@ export default async function XAccountsPage() {
         </header>
       </HydrationSafeEffect>
 
+      <HydrationSafeEffect
+        asChild
+        inView
+        fade
+        slide={{ direction: "up", offset: 12 }}
+        blur={{ initialBlur: 2 }}
+      >
+        <Card>
+          <CardHeader>
+            <CardTitle>{accounts.length ? "绑定另一个 X 账号" : "绑定 X 账号"}</CardTitle>
+            <CardDescription>
+              在服务端提供的可见浏览器中完成登录。工具不会通过表单读取密码或验证码。
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <XAccountBinding />
+          </CardContent>
+        </Card>
+      </HydrationSafeEffect>
+
       {accounts.length ? (
         <div className="flex flex-col gap-3">
           <HydrationSafeEffects
@@ -73,40 +93,16 @@ export default async function XAccountsPage() {
                     {account.status === "CONNECTED" ? "已连接" : "需要重新登录"}
                   </Badge>
                 </CardHeader>
+                {account.status === "CONNECTED" ? (
+                  <CardContent>
+                    <XAccountCollectButton accountId={account.id} />
+                  </CardContent>
+                ) : null}
               </Card>
             ))}
           </HydrationSafeEffects>
         </div>
-      ) : (
-        <HydrationSafeEffect
-          asChild
-          inView
-          fade
-          slide={{ direction: "up", offset: 12 }}
-          blur={{ initialBlur: 2 }}
-        >
-          <Card>
-            <CardHeader>
-              <CardTitle>尚未绑定 X 账号</CardTitle>
-              <CardDescription>
-                绑定完成后，采集记录和整理后的帖子只对当前工作区账号可见。
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              <Alert>
-                <Link2 />
-                <AlertTitle>远程浏览器绑定流程正在接入</AlertTitle>
-                <AlertDescription>
-                  后续会在本机页面中打开由服务端托管的隔离浏览器。此页面不会收集或保存 X 密码、验证码。
-                </AlertDescription>
-              </Alert>
-              <Button disabled className="w-fit">
-                绑定 X 账号
-              </Button>
-            </CardContent>
-          </Card>
-        </HydrationSafeEffect>
-      )}
+      ) : null}
     </section>
   );
 }

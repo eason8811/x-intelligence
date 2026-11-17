@@ -8,3 +8,7 @@ export function postHomeTimeLine(input: {
 export function getToken(mode: number, source: string): Promise<unknown>;
 export function postFlowTask(input: { guest_token: false; cookie: Record<string, string>; flow_token: string; sub_task: unknown }): Promise<unknown>;
 export function getJsInstData(input: { cookie: Record<string, string> }): Promise<unknown>;
+export function getViewer(input: {
+  cookie: { auth_token: string; ct0: string };
+  guest_token: Record<string, unknown>;
+}): Promise<unknown>;

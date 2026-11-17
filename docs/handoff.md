@@ -2023,10 +2023,22 @@ Phase 4 增加 `/dashboard` 与 `/runs` 的只读数据库查询。Dashboard 展
 
 ## Phase 5-A 工具账号与数据归属（2026-11-15）
 
-用户已确认产品采用服务端托管的远程浏览器完成 X 账号绑定，不要求最终用户安装本地助手。登录凭据由用户直接在可见的 X 浏览器页面中输入；Web 自建表单不接收 X 密码或验证码。远程浏览器服务供应商/部署主机尚未确定，且长连接浏览器会话不适合 Vercel Serverless Function。
+用户已确认产品采用服务端托管的远程浏览器完成 X 账号绑定，不要求最终用户安装本地助手。登录凭据由用户直接在可见的 X 浏览器页面中输入；Web 自建表单不接收 X 密码或验证码。用户选择将交互式浏览器部署在长运行 Collector 服务中；云供应商、网络拓扑和固定出口 IP 尚未确定，且长连接浏览器会话不适合 Vercel Serverless Function。
 
 本切片引入 Better Auth 邮箱/密码工具账号认证和受保护的 workspace 路由，并新增 `app_user`、`app_session`、`app_account`、`app_verification`、`x_account` 表。X 账号会话字段位于 `x_account`，只允许保存 AES-GCM 密文包。`feed_run` 增加 `x_account_id`；Dashboard、Runs、Feed 的读查询按当前用户拥有的 X 账号过滤。帖子正文仍按 X Post ID 全局去重，但未观察到该帖的其他用户不会从 Feed 查询中看到它。
 
 历史数据被迁移到未认领的 `x-primary` 账号，运行记录继续关联该账号。未认领数据不会展示给新注册用户；后续绑定相同 X 账号时可设计明确的认领规则。新用户注册后会看到空工作区与绑定入口。
 
-注册目前不要求邮箱验证，项目尚未配置邮件发送/密码重置流程；上线前需接入邮件服务并决定验证与找回策略。需要配置服务端 `BETTER_AUTH_SECRET`（至少 32 字符）和 `BETTER_AUTH_URL`。migration `0003_adorable_the_watchers.sql` 已生成但未应用到数据库。此次通过 `pnpm typecheck`；数据库 migration、真实注册/登录、浏览器验收及外部浏览器服务均未验证/实现。
+注册目前不要求邮箱验证，项目尚未配置邮件发送/密码重置流程；上线前需接入邮件服务并决定验证与找回策略。需要配置服务端 `BETTER_AUTH_SECRET`（至少 32 字符）和 `BETTER_AUTH_URL`。用户回报的数据库查询已读到 1 个 `app_user`、2 个 `app_session`、未认领的旧 `x-primary` 账号和 2 条旧采集运行；migration 相关表因此已在其所查数据库中可用，但未直接读取 Drizzle migration bookkeeping 表。用户也已完成注册/登录、路由切换、Skeleton、动效和无 Hydration 报错的浏览器验收。
+
+## Phase 5-B 服务端 X 账号绑定与按账号采集（2026-11-17）
+
+按用户选择，长运行 Collector 同时承载现有 Next API 与一个独立 HTTP/WebSocket 浏览器流进程；没有把持续浏览器状态放入 Next Route Handler。开发入口 `pnpm dev` 会启动 Collector 的 `3001` API、`3002` 浏览器服务和 Web。生产入口 `pnpm --filter @x-intelligence/collector start` 运行两个 Collector 进程。没有新增数据库表或 migration。
+
+`/settings/accounts` 现在可以启动 Patchright 无头模式关闭的隔离浏览器，向页面实时传送 JPEG 画面，并将点击、滚动和键盘输入转发到 X 登录页。Web 表单不接收 X 凭据；输入只短暂经过 WebSocket 和服务端内存，不记录消息、截图、HAR 或请求正文。完成登录后，Collector 要求页面进入 X 首页，通过已授权 Viewer 查询获得 X 用户 ID 与用户名；页面向用户展示 `@用户名`，需再点确认才会保存。`storageState` 使用 AES-256-GCM 加密，AAD 绑定工具用户 ID 与 X 用户 ID；数据库只收到加密包。若同一个 X ID 已属于其他工具用户，写入被拒绝。旧 `x-primary` 不自动认领。
+
+绑定确认后先执行一次 count=20、pages=1 的首屏采集，并写入以新 `x_account.id` 为外键的 `feed_run`。X 实际响应可能超过请求 count。账号页也提供后续手动采集；Collector 按当前工具用户与 `x_account.id` 查询并解密会话、重新确认 X ID，再创建账号隔离的采集运行。没有调用 Jev，不创建 Cron。采集任务状态暂存于长运行 Collector 内存；运行记录仍持久化在 `feed_run`。
+
+新增运行时依赖 `ws`；将 `tsx` 保留为 Collector 运行依赖，用于启动同一容器中的长运行 TypeScript 浏览器服务。配置项见仓库根 `.env.example`：Web 服务需要 `COLLECTOR_BROWSER_INTERNAL_URL` 与 `COLLECTOR_INTERNAL_TOKEN`；Collector 与 Web 共享同一个内部令牌；浏览器服务需要数据库、`X_AUTH_ENCRYPTION_KEY`、精确的 `X_ACCOUNT_BINDING_ALLOWED_ORIGINS`。生产 WebSocket 地址必须为 `wss://`，由反向代理将 `/ws` 转到 Collector 的 3002 端口。生产 Linux 容器还需安装 Patchright Chromium 和提供 Xvfb/`DISPLAY`；浏览器画面经 WebSocket 提供给用户操作。服务仅支持单个长运行 Collector 实例承载当前进程内的浏览器与采集 job 状态。
+
+静态验证：`pnpm typecheck`、`pnpm lint`、`pnpm build` 均通过；未执行测试、真实浏览器登录、账号身份确认、数据库写入或授权 X 采集。部署供应商、X 白名单出口 IP 匹配、生产 WSS 反代和 Linux Xvfb 尚未验证。首次联调需用测试工具账号与授权 X 账号执行绑定，确认列表出现 `CONNECTED`；随后检查新 `feed_run.x_account_id`、`feed_observation`，并确认数据库中 session envelope 非空且只有密文。还需用另一工具用户确认账号列表与信息流无法读取该账号数据。

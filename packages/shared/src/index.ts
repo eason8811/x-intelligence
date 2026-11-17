@@ -62,3 +62,37 @@ export interface PostClassification {
   classifier: string;
   classifierVersion: string;
 }
+
+export type XAccountBindingClientMessage =
+  | { type: "authenticate"; bindingId: string; ticket: string }
+  | { type: "complete" }
+  | { type: "confirm" }
+  | { type: "cancel" }
+  | { type: "input"; action: "click"; x: number; y: number }
+  | {
+      type: "input";
+      action: "wheel";
+      x: number;
+      y: number;
+      deltaX: number;
+      deltaY: number;
+    }
+  | { type: "input"; action: "press"; key: string }
+  | { type: "input"; action: "insertText"; text: string };
+
+export type XAccountBindingServerMessage =
+  | {
+      type: "state";
+      status:
+        | "starting"
+        | "login"
+        | "checking"
+        | "confirm"
+        | "connected"
+        | "collecting"
+        | "complete"
+        | "error";
+      code?: string;
+      username?: string;
+      collectedCount?: number;
+    };

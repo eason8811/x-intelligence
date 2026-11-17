@@ -78,6 +78,70 @@ export async function listXAccountIdsForUser(
   return accounts.map(({ id }) => id);
 }
 
+export interface ConnectedXAccountSession {
+  id: string;
+  userId: string;
+  xUserId: string;
+  username: string;
+  status: "CONNECTED";
+  encryptionVersion: number;
+  nonce: string;
+  ciphertext: string;
+  authTag: string;
+}
+
+export async function upsertConnectedXAccount(
+  db: DatabaseClient,
+  account: ConnectedXAccountSession,
+): Promise<{ id: string } | undefined> {
+  const [connected] = await db
+    .insert(schema.xAccount)
+    .values(account)
+    .onConflictDoUpdate({
+      target: schema.xAccount.xUserId,
+      targetWhere: isNotNull(schema.xAccount.xUserId),
+      setWhere: eq(schema.xAccount.userId, account.userId),
+      set: {
+        username: account.username,
+        status: "CONNECTED",
+        encryptionVersion: account.encryptionVersion,
+        nonce: account.nonce,
+        ciphertext: account.ciphertext,
+        authTag: account.authTag,
+        updatedAt: new Date(),
+      },
+    })
+    .returning({ id: schema.xAccount.id });
+  return connected;
+}
+
+export async function getConnectedXAccountSessionForUser(
+  db: DatabaseClient,
+  userId: string,
+  accountId: string,
+) {
+  const [account] = await db
+    .select({
+      id: schema.xAccount.id,
+      xUserId: schema.xAccount.xUserId,
+      username: schema.xAccount.username,
+      encryptionVersion: schema.xAccount.encryptionVersion,
+      nonce: schema.xAccount.nonce,
+      ciphertext: schema.xAccount.ciphertext,
+      authTag: schema.xAccount.authTag,
+    })
+    .from(schema.xAccount)
+    .where(
+      and(
+        eq(schema.xAccount.id, accountId),
+        eq(schema.xAccount.userId, userId),
+        eq(schema.xAccount.status, "CONNECTED"),
+      ),
+    )
+    .limit(1);
+  return account;
+}
+
 export async function listFeedRuns(
   db: DatabaseClient,
   xAccountIds: string[],

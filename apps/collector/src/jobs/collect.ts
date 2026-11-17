@@ -32,6 +32,7 @@ export async function collectForYouToDatabase(
   count: number,
   pages: number,
   signal?: AbortSignal,
+  xAccountId = "x-primary",
 ): Promise<CollectionRunResult> {
   if (
     !Number.isInteger(count) ||
@@ -44,7 +45,7 @@ export async function collectForYouToDatabase(
     throw new RangeError("count=1..20, pages=1..3");
   }
 
-  const runId = await beginFeedRun(db, count * pages);
+  const runId = await beginFeedRun(db, count * pages, xAccountId);
   try {
     const result = await probeForYou(source, count, pages, signal);
     await completeFeedRun(db, {

@@ -5,7 +5,10 @@
   "scripts": {
     "dev": "next dev --port 3001",
     "build": "next build",
-    "start": "next start --port 3001",
+    "start": "node scripts/start-long-running.mjs",
+    "start:web": "next start --port 3001",
+    "start:remote-browser": "tsx src/remote-browser/server.ts",
+    "remote-browser:dev": "tsx src/remote-browser/server.ts",
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit",
     "x:auth": "tsx src/auth/login.ts",
@@ -23,11 +26,13 @@
     "next": "16.3.8",
     "patchright": "1.64.3",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "tsx": "4.23.15",
+    "ws": "^8.23.0"
   },
   "devDependencies": {
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
-    "tsx": "4.23.15"
+    "@types/ws": "^8.18.2"
   }
 }

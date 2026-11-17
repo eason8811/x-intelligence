@@ -24,6 +24,10 @@
       "cache": false,
       "persistent": true
     },
+    "remote-browser:dev": {
+      "cache": false,
+      "persistent": true
+    },
     "@x-intelligence/shared#build": {
       "dependsOn": [
         "^build"
