@@ -6,8 +6,17 @@ export interface XViewerIdentity {
   username: string;
 }
 
+export interface XViewerFailureDetails {
+  upstreamStatus?: number;
+  upstreamCode?: string;
+  transportCode?: string;
+}
+
 export class XViewerIdentityError extends Error {
-  constructor(public readonly code: "X_VIEWER_UNAVAILABLE" | "X_VIEWER_IDENTITY_MISSING") {
+  constructor(
+    public readonly code: "X_VIEWER_UNAVAILABLE" | "X_VIEWER_IDENTITY_MISSING",
+    public readonly failureDetails?: XViewerFailureDetails,
+  ) {
     super(code);
     this.name = "XViewerIdentityError";
   }
@@ -23,6 +32,34 @@ function stringValue(...values: unknown[]): string | undefined {
   return values.find((value): value is string => typeof value === "string" && value.length > 0);
 }
 
+function safeFailureDetails(error: unknown): XViewerFailureDetails {
+  const outer = object(error);
+  const nested = object(outer?.e);
+  const response = object(nested?.response) ?? object(outer?.response);
+  const status = response?.status;
+  const rawCode = outer?.code;
+  const upstreamCode = typeof rawCode === "number" && Number.isInteger(rawCode)
+    ? String(rawCode)
+    : typeof rawCode === "string" && /^[A-Za-z0-9_-]{1,32}$/.test(rawCode)
+      ? rawCode
+      : undefined;
+  const rawTransportCode = nested?.code ?? outer?.code;
+  const allowedTransportCodes = new Set([
+    "ECONNRESET", "ETIMEDOUT", "ECONNREFUSED", "EAI_AGAIN", "ENOTFOUND",
+    "ERR_CANCELED", "ERR_NETWORK",
+  ]);
+
+  return {
+    ...(typeof status === "number" && Number.isInteger(status) && status >= 100 && status <= 599
+      ? { upstreamStatus: status }
+      : {}),
+    ...(upstreamCode ? { upstreamCode } : {}),
+    ...(typeof rawTransportCode === "string" && allowedTransportCodes.has(rawTransportCode)
+      ? { transportCode: rawTransportCode }
+      : {}),
+  };
+}
+
 export async function identifyXViewer(
   credentials: XCredentials,
 ): Promise<XViewerIdentity> {
@@ -35,8 +72,8 @@ export async function identifyXViewer(
       },
       guest_token: {},
     });
-  } catch {
-    throw new XViewerIdentityError("X_VIEWER_UNAVAILABLE");
+  } catch (error) {
+    throw new XViewerIdentityError("X_VIEWER_UNAVAILABLE", safeFailureDetails(error));
   }
 
   const responseObject = object(response);

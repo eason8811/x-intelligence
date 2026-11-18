@@ -68,6 +68,7 @@ interface BindingSession {
   closeTimer?: ReturnType<typeof setTimeout>;
   abortController: AbortController;
   pendingIdentity?: PendingIdentity;
+  errorCode?: string;
   authenticated: boolean;
   closed: boolean;
 }
@@ -153,6 +154,7 @@ function sendState(
 }
 
 function sendError(session: BindingSession, code: string): void {
+  session.errorCode = code;
   sendState(session, "error", { code });
 }
 
@@ -195,11 +197,12 @@ async function startBrowser(session: BindingSession): Promise<void> {
       timeout: 60_000,
     });
     if (!session.closed) sendState(session, "login");
-  } catch {
+  } catch (error) {
     if (!session.closed) {
+      const errorName = error instanceof Error ? error.name : "UnknownError";
+      process.stderr.write(`[collector-browser] Browser startup failed (${errorName}).\n`);
       sendError(session, "BROWSER_UNAVAILABLE");
-      closeSocket(session, 1011);
-      await closeBinding(session);
+      if (session.socket) closeSocket(session, 1011);
     }
   }
 }
@@ -461,7 +464,16 @@ async function handleClientMessage(
       session.authenticated = true;
       if (session.ticketTimer) clearTimeout(session.ticketTimer);
       startScreenshotStream(session);
-      sendState(session, session.status);
+      sendState(
+        session,
+        session.status,
+        session.status === "error" && session.errorCode
+          ? { code: session.errorCode }
+          : {},
+      );
+      if (session.status === "error") {
+        session.closeTimer = setTimeout(() => closeSocket(session), 5_000);
+      }
       return;
     } catch {
       closeSocket(session, 1008);
@@ -496,6 +508,17 @@ async function handleClientMessage(
       session.pendingIdentity = await checkLoggedInIdentity(session);
       sendState(session, "confirm", { username: session.pendingIdentity.username });
     } catch (error) {
+      if (error instanceof XViewerIdentityError) {
+        const details = error.failureDetails;
+        const diagnostic = [
+          details?.upstreamStatus ? `http=${details.upstreamStatus}` : undefined,
+          details?.upstreamCode ? `x_code=${details.upstreamCode}` : undefined,
+          details?.transportCode ? `transport=${details.transportCode}` : undefined,
+        ].filter(Boolean).join(" ");
+        process.stderr.write(
+          `[collector-browser] X Viewer check failed${diagnostic ? ` (${diagnostic})` : ""}.\n`,
+        );
+      }
       const code = error instanceof XViewerIdentityError
         ? error.code
         : error instanceof AccountSessionError
