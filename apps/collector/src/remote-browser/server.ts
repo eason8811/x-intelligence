@@ -690,7 +690,7 @@ async function handleInternalRequest(
   void startBrowser(session);
 
   const publicWebSocketUrl = process.env.COLLECTOR_BROWSER_WS_URL?.trim() ||
-    `ws://localhost:${port}/ws`;
+    `ws://${host}:${port}/ws`;
   sendJson(response, 201, {
     bindingId: session.id,
     ticket,
