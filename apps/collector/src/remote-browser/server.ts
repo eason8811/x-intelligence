@@ -515,6 +515,18 @@ async function handleClientMessage(
           details?.upstreamStatus ? `http=${details.upstreamStatus}` : undefined,
           details?.upstreamCode ? `x_code=${details.upstreamCode}` : undefined,
           details?.transportCode ? `transport=${details.transportCode}` : undefined,
+          error.responseShape
+            ? `nodes=${error.responseShape.presentNodes.join(",") || "none"}`
+            : undefined,
+          error.responseShape
+            ? `id_fields=${error.responseShape.presentIdFields.join(",") || "none"}`
+            : undefined,
+          error.responseShape
+            ? `username_fields=${error.responseShape.presentUsernameFields.join(",") || "none"}`
+            : undefined,
+          error.responseShape
+            ? `graphql_errors=${error.responseShape.graphqlErrorCount}`
+            : undefined,
         ].filter(Boolean).join(" ");
         process.stderr.write(
           `[collector-browser] X Viewer check failed (${diagnostic}).\n`,

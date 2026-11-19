@@ -12,10 +12,18 @@ export interface XViewerFailureDetails {
   transportCode?: string;
 }
 
+export interface XViewerResponseShape {
+  presentNodes: string[];
+  presentIdFields: string[];
+  presentUsernameFields: string[];
+  graphqlErrorCount: number;
+}
+
 export class XViewerIdentityError extends Error {
   constructor(
     public readonly code: "X_VIEWER_UNAVAILABLE" | "X_VIEWER_IDENTITY_MISSING",
     public readonly failureDetails?: XViewerFailureDetails,
+    public readonly responseShape?: XViewerResponseShape,
   ) {
     super(code);
     this.name = "XViewerIdentityError";
@@ -60,6 +68,48 @@ function safeFailureDetails(error: unknown): XViewerFailureDetails {
   };
 }
 
+function responseShape(response: unknown): XViewerResponseShape {
+  const responseObject = object(response);
+  const payload = object(responseObject?.data);
+  const viewer = object(payload?.viewer);
+  const userResults = object(viewer?.user_results);
+  const nestedResult = object(userResults?.result);
+  const directUser = object(viewer?.user);
+  const result = nestedResult ?? directUser;
+  const legacy = object(result?.legacy);
+  const core = object(result?.core);
+  const hasStringField = (value: Record<string, unknown> | undefined, field: string) =>
+    typeof value?.[field] === "string" && value[field].length > 0;
+  const presentNodes: string[] = [];
+  if (payload) presentNodes.push("data");
+  if (viewer) presentNodes.push("viewer");
+  if (userResults) presentNodes.push("user_results");
+  if (nestedResult) presentNodes.push("user_results.result");
+  if (directUser) presentNodes.push("user");
+  if (legacy) presentNodes.push("legacy");
+  if (core) presentNodes.push("core");
+  const usernameCandidates: Array<[
+    string,
+    Record<string, unknown> | undefined,
+    string,
+  ]> = [
+    ["legacy.screen_name", legacy, "screen_name"],
+    ["screen_name", result, "screen_name"],
+    ["username", result, "username"],
+    ["core.screen_name", core, "screen_name"],
+  ];
+
+  return {
+    presentNodes,
+    presentIdFields: ["rest_id", "id_str", "id"]
+      .filter((field) => hasStringField(result, field)),
+    presentUsernameFields: usernameCandidates
+      .filter((entry) => hasStringField(entry[1], entry[2]))
+      .map((entry) => entry[0]),
+    graphqlErrorCount: Array.isArray(payload?.errors) ? payload.errors.length : 0,
+  };
+}
+
 export async function identifyXViewer(
   credentials: XCredentials,
 ): Promise<XViewerIdentity> {
@@ -92,7 +142,11 @@ export async function identifyXViewer(
   );
 
   if (!xUserId || !/^\d{1,30}$/.test(xUserId) || !username || !/^[A-Za-z0-9_]{1,15}$/.test(username)) {
-    throw new XViewerIdentityError("X_VIEWER_IDENTITY_MISSING");
+    throw new XViewerIdentityError(
+      "X_VIEWER_IDENTITY_MISSING",
+      undefined,
+      responseShape(response),
+    );
   }
   return { xUserId, username };
 }
