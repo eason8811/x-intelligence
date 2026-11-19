@@ -26,7 +26,13 @@
     },
     "remote-browser:dev": {
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "passThroughEnv": [
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "http_proxy",
+        "https_proxy"
+      ]
     },
     "@x-intelligence/shared#build": {
       "dependsOn": [
