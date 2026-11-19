@@ -511,12 +511,13 @@ async function handleClientMessage(
       if (error instanceof XViewerIdentityError) {
         const details = error.failureDetails;
         const diagnostic = [
+          `kind=${error.code}`,
           details?.upstreamStatus ? `http=${details.upstreamStatus}` : undefined,
           details?.upstreamCode ? `x_code=${details.upstreamCode}` : undefined,
           details?.transportCode ? `transport=${details.transportCode}` : undefined,
         ].filter(Boolean).join(" ");
         process.stderr.write(
-          `[collector-browser] X Viewer check failed${diagnostic ? ` (${diagnostic})` : ""}.\n`,
+          `[collector-browser] X Viewer check failed (${diagnostic}).\n`,
         );
       }
       const code = error instanceof XViewerIdentityError
@@ -782,5 +783,8 @@ server.on("upgrade", (request, socket, head) => {
 });
 
 server.listen(port, host, () => {
-  process.stdout.write(`Collector browser service listening on ${host}:${port}\n`);
+  const httpsProxyConfigured = Boolean(process.env.https_proxy || process.env.HTTPS_PROXY);
+  process.stdout.write(
+    `Collector browser service listening on ${host}:${port} (HTTPS proxy configured: ${httpsProxyConfigured ? "yes" : "no"})\n`,
+  );
 });
